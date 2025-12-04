@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
+import OfferTemplate from "../components/OfferTemplate";
+
+
 import {
   add,
   eachDayOfInterval,
@@ -617,9 +620,15 @@ export default function Bookings() {
   /* ------------------ AVAILABILITY CHECKER ----------------- */
   const [checkInReq, setCheckInReq] = useState("");
   const [checkOutReq, setCheckOutReq] = useState("");
-  const [guestCountReq, setGuestCountReq] = useState(2);
-  const [checkerResult, setCheckerResult] = useState(null);
+  // const [guestCountReq, setGuestCountReq] = useState(2);
+  // const [checkerResult, setCheckerResult] = useState(null);
 
+
+  const [adultsReq, setAdultsReq] = useState(2);
+  const [kidsReq, setKidsReq] = useState(0);
+  const [availableTypes, setAvailableTypes] = useState([]);
+  const [selectedType, setSelectedType] = useState(null);
+  const [offerData, setOfferData] = useState(null);
   /* ---------------------- CALENDAR WEEK --------------------- */
   const [weekStart, setWeekStart] = useState(
     startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -778,6 +787,36 @@ function deleteBooking(id) {
   return swaps;
 };
 
+    const handleCheckerRequest = async () => {
+      setAvailableTypes([]);
+      setSelectedType(null);
+
+      if (!checkInReq || !checkOutReq) {
+        alert("Please select dates.");
+        return;
+      }
+
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_URL}/availability`,
+          {
+            params: {
+              start: checkInReq,
+              end: checkOutReq,
+              adults: adultsReq,
+              kids: kidsReq
+            }
+          }
+        );
+
+        setAvailableTypes(res.data.options);
+
+      } catch (err) {
+        console.error("Availability error:", err);
+        alert("Could not fetch room availability.");
+      }
+    };
+
   const findFreeRoomsForRange = (checkIn, checkOut, rooms, bookings) => {
     const dummyBooking = { checkIn, checkOut };
     return rooms.filter(room =>
@@ -879,10 +918,7 @@ function deleteBooking(id) {
       {/* ---------------------- TABS ---------------------- */}
       <div className="flex space-x-3 border-b pb-2">
         <button
-            onClick={() => {
-            setTab("calendar");
-            setActiveBooking(null);
-          }}
+             
           className={`pb-1 ${
             tab === "calendar"
               ? "border-b-2 border-blue-500 font-semibold"
@@ -988,39 +1024,161 @@ function deleteBooking(id) {
 
           <br></br>
           <div className="mt-6 p-4 bg-white border rounded shadow-sm">
-          <h3 className="font-semibold mb-3">🔎 Booking Request Checker</h3>
+  <h3 className="font-semibold mb-3">🔎 Booking Request Checker</h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  {/* FORM INPUTS */}
+  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+
+        <div>
+          <label className="text-sm font-medium">Check-in</label>
+          <input
+            type="date"
+            className="w-full p-2 border rounded mt-1"
+            value={checkInReq}
+            onChange={(e) => setCheckInReq(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">Check-out</label>
+          <input
+            type="date"
+            className="w-full p-2 border rounded mt-1"
+            value={checkOutReq}
+            onChange={(e) => setCheckOutReq(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">Adults</label>
+          <input
+            type="number"
+            min="1"
+            className="w-full p-2 border rounded mt-1"
+            value={adultsReq}
+            onChange={(e) => setAdultsReq(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">Kids</label>
+          <input
+            type="number"
+            min="0"
+            className="w-full p-2 border rounded mt-1"
+            value={kidsReq}
+            onChange={(e) => setKidsReq(e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-end">
+          <button
+            onClick={handleCheckerRequest}
+            className="w-full p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Check
+          </button>
+        </div>
+      </div>
+
+      {/* RESULTS */}
+{availableTypes.length > 0 && (
+  <div className="mt-6 p-4 bg-gray-50 border rounded">
+    <h4 className="font-semibold mb-2">Available Room Types</h4>
+
+    <div className="space-y-3">
+      {availableTypes.map((t) => (
+        <div
+          key={t.type}
+          className={`border rounded-lg p-3 bg-white shadow-sm ${
+            selectedType?.type === t.type
+              ? "ring-2 ring-blue-400"
+              : "hover:bg-blue-50"
+          }`}
+        >
+          {/* Header row with select button */}
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <label className="text-sm font-medium">Check-in</label>
-              <input
-                type="date"
-                className="w-full p-2 border rounded mt-1"
-                value={checkInReq}
-                onChange={(e) => setCheckInReq(e.target.value)}
-              />
+              <div className="font-medium">
+                {t.type} — {t.rooms.length} available
+              </div>
+              <div className="text-sm text-gray-500">
+                Capacity: {t.capacity}
+              </div>
             </div>
-
-            <div>
-              <label className="text-sm font-medium">Check-out</label>
-              <input
-                type="date"
-                className="w-full p-2 border rounded mt-1"
-                value={checkOutReq}
-                onChange={(e) => setCheckOutReq(e.target.value)}
-              />
-            </div>
-
-            <div className="flex items-end">
-              <button
-                onClick={checkAvailability}
-                className="w-full p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Check
-              </button>
-            </div>
+            <button
+              onClick={() => setOfferData(t)}
+              className="px-3 py-1 text-sm rounded bg-sky-600 text-white hover:bg-sky-700"
+            >
+              Prepare Offer
+            </button>
           </div>
-          </div>
+
+          {/* Table of specific rooms */}
+          {t.rooms.length > 0 && (
+            <div className="mt-2">
+              <table className="w-full text-sm border border-gray-200 rounded">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-2 py-1 text-left border-b text-gray-700">
+                      Room
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.rooms.map((roomName) => (
+                    <tr key={roomName}>
+                      <td className="px-2 py-1 border-t">{roomName}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {offerData && (
+            <Modal onClose={() => setOfferData(null)}>
+              <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg space-y-4">
+
+                <h2 className="text-xl font-semibold">
+                  Offer for {offerData.type}
+                </h2>
+
+                <OfferTemplate
+                  start={checkInReq}
+                  end={checkOutReq}
+                  adults={adultsReq}
+                  kids={kidsReq}
+                  roomType={offerData}
+                />
+
+                <button
+                  onClick={() => setOfferData(null)}
+                  className="px-4 py-2 bg-gray-300 rounded"
+                >
+                  Close
+                </button>
+              </div>
+            </Modal>
+          )}
+
+        </div>
+      ))}
+    </div>
+
+    {selectedType && (
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-300 rounded">
+        <p className="font-medium">
+          Selected type: {selectedType.type}
+        </p>
+        <p className="text-sm text-gray-600 mt-1">
+          You’ll still choose the exact room manually in the booking modal.
+        </p>
+      </div>
+    )}
+  </div>
+)}
+    </div>
           <br></br>
 
           {requestResults && (
