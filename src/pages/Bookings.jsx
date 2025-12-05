@@ -68,289 +68,10 @@ function DraggableBooking({
   });
 }
  
- /* ------------------ WEEKLY CALENDAR ------------------ */
 
 const ROOM_LABEL_WIDTH = 80;
 const ROW_HEIGHT = 58;
-
-function WeeklyCalendar({
-  rooms,
-  bookings,
-  weekStart,
-  weekEnd,
-  onPrevWeek,
-  onNextWeek,
-  onToday,
-  onEditBooking,
-  onMoveBooking
-}) {
-  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
-
-  const containerRef = useRef(null);
-  const [dayWidth, setDayWidth] = useState(140);
-
-  useEffect(() => {
-  if (!containerRef.current) return;
-
-  const resize = () => {
-    const total = containerRef.current.offsetWidth;
-    const available = total - ROOM_LABEL_WIDTH;
-    setDayWidth(Math.max(80, available / 7)); // min size 80px
-  };
-
-  resize(); // initial measure
-
-  const observer = new ResizeObserver(resize);
-  observer.observe(containerRef.current);
-
-  return () => observer.disconnect();
-}, []);
-
-  /* Sensors */
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 3 } })
-  );
-
-  /* Drag state */
-  const [activeBooking, setActiveBooking] = useState(null);
-  const [activeData, setActiveData] = useState(null);
-
-  /* Helpers */
-  function getStartIndex(booking, weekStart, weekEnd) {
-    const rawStart = new Date(booking.checkIn);
-    const rawEnd   = new Date(booking.checkOut);
-
-    // Inclusive end → convert
-    const inclusiveEnd = addDays(rawEnd, -1);
-
-    // No overlap → tell renderer to skip
-    if (inclusiveEnd < weekStart || rawStart > weekEnd) return null;
-
-    // Clip start
-    const visibleStart = rawStart < weekStart ? weekStart : rawStart;
-
-    return differenceInCalendarDays(visibleStart, weekStart);
-  }
-
-
-  function getSpan(booking, weekStart, weekEnd) {
-
-    const rawStart = new Date(booking.checkIn);
-    const rawEnd   = new Date(booking.checkOut);
-
-    const inclusiveEnd = addDays(rawEnd, -1);
-
-    const visibleStart = rawStart < weekStart ? weekStart : rawStart;
-    const visibleEnd   = inclusiveEnd > weekEnd ? weekEnd : inclusiveEnd;
-
-    const startIdx = differenceInCalendarDays(visibleStart, weekStart);
-    const endIdx   = differenceInCalendarDays(visibleEnd,   weekStart);
-
-    return differenceInCalendarDays(visibleEnd, visibleStart) + 1;
-
-  }
-
-
-  const isOverlap = (booking, roomName) => {
-    const start = parseISO(booking.checkIn);
-    const end = add(parseISO(booking.checkOut), { days: -1 });
-
-    return bookings.some((other) => {
-      if (other.id === booking.id) return false;
-      if (other.room !== roomName) return false;
-
-      const oStart = parseISO(other.checkIn);
-      const oEnd = add(parseISO(other.checkOut), { days: -1 });
-
-      return (
-        isWithinInterval(start, { start: oStart, end: oEnd }) ||
-        isWithinInterval(end, { start: oStart, end: oEnd }) ||
-        isWithinInterval(oStart, { start, end }) ||
-        isWithinInterval(oEnd, { start, end })
-      );
-    });
-  };
-
-  /* ------------------ DRAG START ------------------ */
-  const handleDragStart = (event) => {
-    const booking = bookings.find((b) => b.id === event.active.id);
-    if (!booking) return;
-
-    setActiveBooking(booking);
-    setActiveData(event.active.data.current);
-  };
-
-  /* ------------------ DRAG END ------------------ */
-  const handleDragEnd = (event) => {
-    const { delta } = event;
-    if (!activeBooking) return;
-
-    const booking = activeBooking;
-    const sourceRoomIndex = activeData.roomIndex;
-
-    const dayShift = Math.round(delta.x / dayWidth );
-    const roomShift = Math.round(delta.y / ROW_HEIGHT);
-
-    const newRoomIndex = Math.max(
-      0,
-      Math.min(sourceRoomIndex + roomShift, rooms.length - 1)
-    );
-
-    const newRoom = rooms[newRoomIndex];
-
-    const newCheckIn = add(parseISO(booking.checkIn), { days: dayShift });
-    const duration = differenceInCalendarDays(
-      parseISO(booking.checkOut),
-      parseISO(booking.checkIn)
-    );
-
-    const newCheckOut = add(newCheckIn, { days: duration });
-
-    onMoveBooking({
-      ...booking,
-      room: newRoom.name,
-      checkIn: format(newCheckIn, "yyyy-MM-dd"),
-      checkOut: format(newCheckOut, "yyyy-MM-dd")
-    });
-
-    setActiveBooking(null);
-    setActiveData(null);
-  };
-
-  /* ------------------ RENDER ------------------ */
-  return (
-    <div ref={containerRef} className="space-y-6 select-none bg-slate-50 p-4 rounded-xl shadow-inner">
-
-      {/* Navigation */}
-      <div className="flex justify-between items-center mb-2">
-        <button onClick={onPrevWeek} className="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded">
-          ◀
-        </button>
-
-        <div className="font-semibold text-lg">
-          {format(weekStart, "d MMM")} — {format(weekEnd, "d MMM yyyy")}
-        </div>
-
-        <button onClick={onNextWeek} className="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded">
-          ▶
-        </button>
-      </div>
-
-      {/* Today Button */}
-      <div className="flex justify-center">
-        <button
-          onClick={onToday}
-          className="px-3 py-1 bg-blue-200 hover:bg-blue-300 rounded"
-        >
-          Today
-        </button>
-      </div>
-
-      {/* Week header */}
-      <div className="flex ml-[140px]">
-        {weekDays.map((day, idx) => (
-          <div
-            key={idx}
-            className="text-center font-semibold border-r bg-white py-1 shadow-sm"
-            style={{ width: dayWidth }}
-          >
-            {format(day, "EEE dd")}
-          </div>
-        ))}
-      </div>
-
-      {/* Grid + Draggables */}
-      <DndContext
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToWindowEdges]}
-      >
-        {rooms.map((room, roomIndex) => {
-          const roomBookings = bookings.filter((b) => b.room === room.name);
-
-          return (
-            <div key={room.id} className="relative h-[58px]">
-
-              {/* Room label */}
-              <div
-                className="absolute left-0 top-0 h-full flex items-center justify-center
-                           bg-slate-200 border-r font-medium text-slate-700 shadow-inner"
-                style={{ width: 140 }}
-              >
-                {room.name}
-              </div>
-
-              {/* Day grid */}
-              <div className="flex ml-[140px]">
-                {weekDays.map((_, i) => (
-                  <div
-                    key={i}
-                    className="border-r h-[58px] bg-white"
-                    style={{ width: dayWidth }}
-                  />
-                ))}
-              </div>
-
-              {/* Booking layer */}
-              <div className="absolute top-0 left-[140px] w-full h-full">
-                {roomBookings.map((booking) => {
-                  const startIdx = getStartIndex(booking, weekStart, weekEnd);
-
-
-                  if (startIdx < 0 || startIdx >= 7) return null;
-
-                  const span = getSpan(booking, weekStart, weekEnd);
-                  const x = startIdx * dayWidth ;
-                  const width = span * dayWidth - 6;
-
-                  return (
-                    <DraggableBooking
-                      key={booking.id}
-                      booking={booking}
-                      roomIndex={roomIndex}
-                    >
-                      {({ setNodeRef, listeners, attributes, transform }) => (
-                        <BookingCard
-                          booking={booking}
-                          x={x}
-                          width={width}
-                          roomIndex={roomIndex}
-                          isOverbooked={isOverlap(booking, room.name)}
-                          setNodeRef={setNodeRef}
-                          listeners={listeners}
-                          attributes={attributes}
-                          transform={transform}
-                          onClick={onEditBooking}
-                        />
-                      )}
-                    </DraggableBooking>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Ghost */}
-        <DragOverlay>
-          {activeBooking ? (
-            <div className="opacity-80">
-              <BookingCard
-                booking={activeBooking}
-                x={0}
-                width={dayWidth }
-                fromOverlay={true}
-                roomIndex={0}
-              />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-    </div>
-  );
-}
+ 
 /*******************************
  * RESPONSIVE MONTHLY CALENDAR
  *******************************/
@@ -573,7 +294,14 @@ function MonthlyCalendar({
                   <div className="flex-1">
                     <div className="font-semibold truncate">{b.guestName}</div>
                     <div className="text-xs opacity-80 truncate">
-                      {b.channel} • €{b.price}/night
+                      {b.channel} • €{b.price}/night • {Math.max(
+                                                        1,
+                                                        Math.ceil(
+                                                          (new Date(b.checkOut) -
+                                                            new Date(b.checkIn)) /
+                                                            (1000 * 60 * 60 * 24)
+                                                        )
+                                                      )} nights
                     </div>
                   </div>
 
@@ -956,21 +684,7 @@ function deleteBooking(id) {
               📅 Month View
             </button>
           </div>
-
-          {/* WEEKLY CALENDAR COMPONENT */}
-          {/* <WeeklyCalendar
-            rooms={rooms}
-            bookings={bookings}
-            weekStart={weekStart}
-            weekEnd={weekEnd}
-            onPrevWeek={() => setWeekStart(add(weekStart, { weeks: -1 }))}
-            onNextWeek={() => setWeekStart(add(weekStart, { weeks: 1 }))}
-            onToday={() =>
-              setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))
-            }
-            onEditBooking={(b) => setEditingBooking(b)}
-            onMoveBooking={handleMoveBooking}
-          /> */}
+  
 
         </div>
 
@@ -1218,38 +932,7 @@ function deleteBooking(id) {
               ))}
             </div>
           )}
-
-
-
-
-
-
-      {/* ------------------ LIST VIEW ------------------ */}
-      {tab === "list" && (
-        <div>
-          {/* <br></br>
-          <button
-            className="mb-4 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            onClick={() => setNewBookingOpen(true)}
-          >
-            + Add Booking
-          </button> */}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {bookings.map((b) => (
-              <BookingCardList
-                key={b.id}
-                booking={b}
-                onEdit={() => setEditingBooking(b)}
-                refresh={() =>
-                  axios.get(URL).then((res) => setBookings(res.data))
-                }
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
+ 
       {/* ------------------ NEW BOOKING MODAL ------------------ */}
       {newBookingOpen && (
         <Modal onClose={() => setNewBookingOpen(false)}>
@@ -1262,6 +945,7 @@ function deleteBooking(id) {
               setNewBookingOpen(false);
               axios.get(URL).then((res) => setBookings(res.data));
             }}
+            rooms={rooms}
           />
         </Modal>
       )}
@@ -1276,6 +960,7 @@ function deleteBooking(id) {
               setEditingBooking(null);
               axios.get(URL).then((res) => setBookings(res.data));
             }}
+            rooms={rooms}
           />
         </Modal>
       )}
@@ -1375,30 +1060,12 @@ function BookingCard({
     </div>
   );
 }
-
-function BookingCardList({ booking, onEdit }) {
-  return (
-    <div
-      className="p-3 mb-2 bg-white rounded border shadow-sm flex justify-between items-center hover:bg-slate-50 cursor-pointer"
-      onClick={() => onEdit(booking)}
-    >
-      <div>
-        <div className="font-semibold">{booking.guestName}</div>
-        <div className="text-xs opacity-70">
-          {booking.room} • {booking.channel} • €{booking.price}/night
-        </div>
-      </div>
-
-      <div className="text-xs text-slate-500">
-        {booking.checkIn} → {booking.checkOut}
-      </div>
-    </div>
-  );
-}
+ 
 /* -------------------------------------------------------
    BOOKING FORM
 ------------------------------------------------------- */
-function BookingForm({ booking, onSave }) {
+function BookingForm({ booking, onSave, rooms }) {
+   
   const [form, setForm] = useState(
     booking || {
       guestName: "",
@@ -1412,12 +1079,13 @@ function BookingForm({ booking, onSave }) {
       notes: "",
     }
   );
-
+ 
   const update = (field) => (e) =>
+    
     setForm({
       ...form,
       [field]:
-        field === "price" || field === "adults" || field === "kids"
+        field === "price" || field === "adults" || field === "kids"  
           ? Number(e.target.value || 0)
           : e.target.value,
     });
@@ -1441,7 +1109,11 @@ function BookingForm({ booking, onSave }) {
 
     onSave();
   };
-
+ 
+  function updateRoom(e){
+     
+    
+  }
   return (
     <div className="space-y-3">
       <h3 className="font-semibold text-lg">
@@ -1455,14 +1127,28 @@ function BookingForm({ booking, onSave }) {
         value={form.guestName}
         onChange={update("guestName")}
       />
-
+{/* 
       <input
         type="text"
         placeholder="Room"
         className="w-full px-3 py-2 border rounded"
         value={form.room}
         onChange={update("room")}
-      />
+      /> */}
+      
+      <select
+        value={form.room}
+        onChange={update("room")}
+        className="w-full p-2 border rounded"
+      >
+        <option value="">Select room...</option>
+
+        {rooms.map((r) => (
+          <option key={r.id} value={r.name}>
+            {r.name} — {r.type} (capacity {r.capacity})
+          </option>
+        ))}
+      </select>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -1549,7 +1235,7 @@ function BookingForm({ booking, onSave }) {
 /* -------------------------------------------------------
    BOOKING EDITOR
 ------------------------------------------------------- */
-function BookingEditor({ booking, onSave, onDelete }) {
+function BookingEditor({ booking, onSave, onDelete, rooms }) {
   
   const handleSave = async (form) => {
     await axios.put(`${URL}/${booking.id}`, form);
@@ -1571,7 +1257,7 @@ const handleDelete = async () => {
 
   return (
     <div className="w-full">
-      <BookingForm booking={booking} onSave={() => onSave()} />
+      <BookingForm booking={booking} onSave={() => onSave()} rooms={rooms}/>
       {/* Delete button */}
       <button
         className="mt-4 w-full py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
