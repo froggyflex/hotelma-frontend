@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import OfferTemplate from "../components/OfferTemplate";
-
+ 
 
 import {
   add,
@@ -70,7 +70,7 @@ function DraggableBooking({
  
 
 const ROOM_LABEL_WIDTH = 80;
-const ROW_HEIGHT = 58;
+const ROW_HEIGHT = 60;
  
 /*******************************
  * RESPONSIVE MONTHLY CALENDAR
@@ -85,8 +85,8 @@ function MonthlyCalendar({
   onEditBooking
 
 }) {
-  const ROW_HEIGHT = 60;
-  const ROOM_LABEL_WIDTH = 80;
+  
+  
 
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
@@ -203,7 +203,7 @@ function MonthlyCalendar({
         <h2 className="font-semibold text-lg">
           {format(monthDate, "MMMM yyyy")}
         </h2>
-
+nbcmv  
         <button
           onClick={onNextMonth}
           className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200"
@@ -216,6 +216,8 @@ function MonthlyCalendar({
       <div
         ref={gridRef}
         className="border border-slate-300 rounded overflow-hidden w-full"
+
+        
       >
         {/* Header days */}
         <div className="flex border-b bg-slate-100 text-center">
@@ -251,7 +253,7 @@ function MonthlyCalendar({
             {/* Row grid */}
             <div
               className="relative"
-              style={{ height: ROW_HEIGHT, width: dayWidth * days.length }}
+              style={{ height: ROW_HEIGHT, width: dayWidth * days.length,  }}
               onDragOver={onDragOver}
               onDrop={(e) => onDrop(e, room)}
               
@@ -262,7 +264,7 @@ function MonthlyCalendar({
                   <div
                     key={d.toISOString()}
                     style={{ width: dayWidth }}
-                    className="border-r border-slate-200 h-full"
+                    className="border-r border-slate-300 h-full border-b border-slate-300 h-full"
                   />
                 ))}
               </div>
@@ -373,7 +375,7 @@ export default function Bookings() {
 
  
 function deleteBooking(id) {
-  if (!window.confirm("Are you sure you want to delete this booking?")) return;
+  if (!window.confirm("Done")) return;
 
   setBookings((prev) => prev.filter((b) => b.id !== id));
   setEditingBooking(null); // close modal
@@ -953,6 +955,7 @@ function deleteBooking(id) {
       {/* ------------------ EDIT BOOKING MODAL ------------------ */}
       {editingBooking && (
         <Modal onClose={() => setEditingBooking(null)}>
+
           <BookingEditor
             booking={editingBooking}
             onDelete={deleteBooking} 
@@ -974,12 +977,13 @@ function deleteBooking(id) {
 function Modal({ children, onClose }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white p-4 rounded-xl shadow-xl relative w-full max-w-lg">
+      <div className="bg-white p-4 rounded-3xl shadow-2xl relative w-full max-w-4xl">
         <button
           onClick={onClose}
-          className="absolute right-3 top-3 text-slate-600 hover:text-slate-800"
+          className="absolute right-1 top-3 text-slate-600 hover:text-slate-800"
         >
           ✖
+          
         </button>
         {children}
       </div>
@@ -1035,7 +1039,7 @@ function BookingCard({
       {...attributes}
       className={`
         absolute rounded border p-1 text-xs cursor-grab shadow-md
-        transition-all duration-150
+        transition-all duration-150 
         ${isOverbooked ? "bg-red-300 border-red-600" : "bg-blue-200 border-blue-500"}
         ${fromOverlay ? "opacity-80 scale-[1.03]" : ""}
       `}
@@ -1064,7 +1068,7 @@ function BookingCard({
 /* -------------------------------------------------------
    BOOKING FORM
 ------------------------------------------------------- */
-function BookingForm({ booking, onSave, rooms }) {
+function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
    
   const [form, setForm] = useState(
     booking || {
@@ -1114,122 +1118,196 @@ function BookingForm({ booking, onSave, rooms }) {
      
     
   }
-  return (
-    <div className="space-y-3">
-      <h3 className="font-semibold text-lg">
-        {booking ? "Edit Booking" : "New Booking"}
-      </h3>
+return (
+  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto p-6 sm:p-8 space-y-6 relative border border-sky-100">
+ 
 
-      <input
-        type="text"
-        placeholder="Guest name"
-        className="w-full px-3 py-2 border rounded"
-        value={form.guestName}
-        onChange={update("guestName")}
-      />
-{/* 
-      <input
-        type="text"
-        placeholder="Room"
-        className="w-full px-3 py-2 border rounded"
-        value={form.room}
-        onChange={update("room")}
-      /> */}
-      
-      <select
-        value={form.room}
-        onChange={update("room")}
-        className="w-full p-2 border rounded"
-      >
-        <option value="">Select room...</option>
-
-        {rooms.map((r) => (
-          <option key={r.id} value={r.name}>
-            {r.name} — {r.type} (capacity {r.capacity})
-          </option>
-        ))}
-      </select>
-
-      <div className="grid grid-cols-2 gap-3">
+    {/* Header */}
+    <div className="border-b pb-4 mb-2 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-xl shadow-md">
+          🛏️
+        </div>
         <div>
-          <label>Check-in</label>
+          <h3 className="text-2xl font-semibold text-gray-800">
+            {booking ? "Edit Booking" : "New Booking"}
+          </h3>
+          <p className="text-xs text-sky-600">
+            Luis Pool • Room & Booking Manager
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* Guest & Room */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+          <span className="text-sky-500">👤</span> Guest Name
+        </label>
+        <input
+          type="text"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
+                     focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+          value={form.guestName}
+          onChange={update("guestName")}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+          <span className="text-sky-500">🏡</span> Room
+        </label>
+        <select
+          value={form.room}
+          onChange={update("room")}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
+                     focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+        >
+          <option value="">Select room...</option>
+          {rooms.map((r) => (
+            <option key={r.id} value={r.name}>
+              {r.name} — {r.type} (capacity {r.capacity})
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    {/* Stay Details */}
+    <div>
+      <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+        <span className="text-sky-500">📅</span> Stay Details
+      </h4>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">Check-in</label>
           <input
             type="date"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
+                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
             value={form.checkIn}
             onChange={update("checkIn")}
           />
         </div>
 
-        <div>
-          <label>Check-out</label>
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">Check-out</label>
           <input
             type="date"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
+                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
             value={form.checkOut}
             onChange={update("checkOut")}
           />
         </div>
       </div>
+    </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label>Adults</label>
+    {/* Guests */}
+    <div>
+      <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+        <span className="text-sky-500">👨‍👩‍👧</span> Guests
+      </h4>
+
+      <div className="grid grid-cols-2 gap-6">
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">Adults</label>
           <input
             type="number"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
+                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
             value={form.adults}
             onChange={update("adults")}
           />
         </div>
-        <div>
-          <label>KIDS</label>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">Kids</label>
           <input
             type="number"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
+                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
             value={form.kids}
             onChange={update("kids")}
           />
         </div>
       </div>
-       <div>
-      <label>Channel</label>
-      <input
-        type="text"
-        placeholder="Channel"
-        className="w-full px-3 py-2 border rounded"
-        value={form.channel}
-        onChange={update("channel")}
-      />
-      </div>
-      <div>
-      <label>Price per day</label>
-      <input
-        type="number"
-        placeholder="Price"
-        className="w-full px-3 py-2 border rounded"
-        value={form.price}
-        onChange={update("price")}
-      />
-      </div>
+    </div>
 
-      <div>
-        <label>Notes</label>
+    {/* Pricing & Channel */}
+    <div>
+      <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+        <span className="text-sky-500">💶</span> Pricing & Channel
+      </h4>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">Channel</label>
+          <input
+            type="text"
+            placeholder="Booking source"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
+                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+            value={form.channel}
+            onChange={update("channel")}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">
+            Price per day (€)
+          </label>
+          <input
+            type="number"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
+                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+            value={form.price}
+            onChange={update("price")}
+          />
+        </div>
+      </div>
+    </div>
+
+    {/* Notes */}
+    <div>
+      <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+        <span className="text-sky-500">📝</span> Notes
+      </h4>
       <textarea
-        placeholder="Notes"
-        className="w-full px-3 py-2 border rounded"
+        className="w-full px-3 py-2 h-28 border border-gray-300 rounded-lg bg-sky-50/40
+                   focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white resize-none"
+        placeholder="Arrival details, deposits, special requests…"
         value={form.notes}
         onChange={update("notes")}
       />
-        </div>
+    </div>
+
+    {/* Footer Buttons */}
+    <div className="pt-4 border-t flex justify-between items-center gap-3">
+      {booking && (
+        <button
+          onClick={onDelete}
+          className="px-4 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 font-medium"
+        >
+          Delete Booking
+        </button>
+      )}
+
       <button
         onClick={submit}
-        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        className="ml-auto px-5 py-2.5 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600
+                   text-white font-medium hover:from-sky-600 hover:to-blue-700 shadow-md"
       >
-        {booking ? "Save changes" : "Create booking"}
+        {booking ? "Save Changes" : "Create Booking"}
       </button>
     </div>
-  );
+  </div>
+);
+
+
+
 }
 
 /* -------------------------------------------------------
@@ -1257,14 +1335,14 @@ const handleDelete = async () => {
 
   return (
     <div className="w-full">
-      <BookingForm booking={booking} onSave={() => onSave()} rooms={rooms}/>
+      <BookingForm booking={booking} onSave={() => onSave()} rooms={rooms} onDelete={handleDelete}/>
       {/* Delete button */}
-      <button
+      {/* <button
         className="mt-4 w-full py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
         onClick={handleDelete}
       >
         Delete Booking
-      </button>
+      </button> */}
     </div>
   );
 }

@@ -387,8 +387,7 @@ export default function CreateInvoice() {
             />
           </label>
         </div>
-      </div>
-
+  </div>
       {/* LIVE FULL INVOICE DETAILS */}
       {payload && selectedBooking && (
         <InvoiceFullDetails payload={payload} booking={selectedBooking} />

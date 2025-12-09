@@ -1,0 +1,20 @@
+ .calendar-column-hover {
+  background-color: rgba(0,0,0,0.04);
+}
+.calendar-grid-line {
+  border-color: rgba(0,0,0,0.15); /* instead of ~0.05 */
+}
+.calendar-row {
+  position: relative;
+  z-index: 1;
+}
+
+.calendar-row:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.calendar-row > .calendar-cells {
+  position: absolute;
+  inset: 0;
+  z-index: 2; /* grid goes above background */
+}

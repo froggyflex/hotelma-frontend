@@ -15,16 +15,16 @@
  *   notes
  * }
  */
-  function getVatRate(cat) {
-    switch (cat) {
-      case 1: return 0.24;  // 24%
-      case 2: return 0.13;  // 13%
-      case 3: return 0.06;  // 6%
-      case 7: return 0.00;  // exempt
-      default: return 0.24;
-    }
-  }
+  
+  function getGreekDate() {
+  const date = new Date(Date.now() + 2 * 60 * 60 * 1000); // convert UTC → Greece
 
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 export default function buildInvoicePayload(
   booking,
   payments = {},
@@ -46,15 +46,16 @@ const rate = options.customRate !== null && options.customRate !== undefined
   ? Number(options.customRate)
   : Number(booking.price);
  
-  const totalAccommodation = nights * rate;
+  const totalAccommodation = nights * (rate);
 
   const invoiceDefaults = settings.invoiceDefaults || {};
   const hotelInfo = settings.hotelInfo || {};
  
 
-  const vatAccommodation = Number(invoiceDefaults.vatAccommodation ?? 0.24); // 17% in Kos
+  const vatAccommodation = Number(invoiceDefaults.vatAccommodation ?? 0.13); //  
+  //console.log('vat', vatAccommodation)
   const accommodationTaxPerNight = Number(
-    invoiceDefaults.accommodationTax ?? 1.5
+    invoiceDefaults.accommodationTax ?? 2.0
   );
 
   // Split net/VAT for accommodation
@@ -96,11 +97,12 @@ const rate = options.customRate !== null && options.customRate !== undefined
     postalCode: options.customerPostalCode || "",
   };
 
+
   // AADE invoiceHeader – we let backend set aa & series, but we keep some info
   const invoiceHeader = {
     series: invoiceDefaults.series || "A",
     aa: 0, // backend will assign and persist
-    issueDate: new Date().toISOString().split("T")[0],
+    issueDate: getGreekDate(),
     currency: "EUR",
     invoiceType: customerType === "B2B" ? "1.1" : "11.3", // typical: 1.1 = invoice, 11.3 = receipt (adjust if needed)
   };
@@ -109,7 +111,7 @@ const rate = options.customRate !== null && options.customRate !== undefined
   const accommodationLine = {
     lineNumber: 1,
     netValue: netAccommodation,
-    vatCategory: 1, // will be interpreted using vatAccommodation
+    vatCategory: 2, // will be interpreted using vatAccommodation
     vatAmount: vatAmount,
     description: `Accommodation: ${nights} nights × €${rate}/night`,
     quantity: nights,
@@ -128,10 +130,17 @@ const rate = options.customRate !== null && options.customRate !== undefined
     lineNumber: 2,
     netValue: accommodationTaxTotal,
     vatCategory: 7, // 0% VAT with exemption
+    vatExemptionCategory: 27,
     vatAmount: 0,
     description: `Accommodation Tax (€${accommodationTaxPerNight}/night)`,
     quantity: nights,
     unitPrice: accommodationTaxPerNight,
+    otherTaxes: [
+        {
+            type: 4,
+            amount: accommodationTaxTotal
+        }
+    ],
     incomeClassification: [
       {
         classificationType: 1,
@@ -140,6 +149,14 @@ const rate = options.customRate !== null && options.customRate !== undefined
       },
     ],
     vatExemptionCategory: 27, // example code for hotel residence tax – confirm with accountant
+  };
+
+  const invoiceSummary = {
+    sumNetValue: Number((netAccommodation + accommodationTaxTotal).toFixed(2)),
+    sumVatAmount: Number(vatAmount.toFixed(2)),
+    sumOtherTaxesAmount: Number(accommodationTaxTotal.toFixed(2)),
+    sumFeesAmount: 0,
+    sumGrossValue: Number((totalAmount).toFixed(2)),
   };
 
   return {
@@ -155,6 +172,7 @@ const rate = options.customRate !== null && options.customRate !== undefined
     customer,
     invoiceHeader,
     invoiceDetails: [accommodationLine, taxLine],
+    invoiceSummary,
     paymentMethods,
     totalAmount,
     nights,
