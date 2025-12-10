@@ -84,6 +84,7 @@ function parseNotes(text) {
   });
 }
 
+const norm = (d) => new Date(d).toISOString().slice(0, 10);
 
 export default function Dashboard() {
   const [bookings, setBookings] = useState([])
@@ -94,33 +95,236 @@ export default function Dashboard() {
     axios.get(URLR).then((res) => setRooms(res.data))
   }, [])
 
+  //from the database => "2025-11-24"
   const todayStr = new Date().toISOString().slice(0, 10)
+  const today = new Date();    
 
-  const arrivalsToday = bookings.filter((b) => b.checkIn === todayStr)
-  const departuresToday = bookings.filter((b) => b.checkOut === todayStr)
+  const arrivalsToday = bookings.filter((b) =>  norm(b.checkIn) === todayStr)
+  const departuresToday = bookings.filter((b) => norm(b.checkOut) === todayStr)
   const occupiedToday = bookings.filter(
-    (b) => b.checkIn <= todayStr && b.checkOut > todayStr
+    (b) => norm(b.checkIn) <= todayStr && norm(b.checkOut) > todayStr
   )
 
   const dirtyRooms = rooms.filter((r) => r.status === 'dirty')
 
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-2">Dashboard</h2>
+return (
+  <div className="w-full flex gap-6 px-6 py-4">
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Arrivals today" value={arrivalsToday.length} accent="bg-emerald-500" />
-        <StatCard label="Departures today" value={departuresToday.length} accent="bg-rose-500" />
-        <StatCard label="Occupied today" value={occupiedToday.length} accent="bg-blue-500" />
-        <StatCard label="Rooms needing cleaning" value={dirtyRooms.length} accent="bg-amber-500" />
+    {/* ---------------------------------- */}
+    {/* LEFT SIDEBAR (DATE + OCCUPANCY)    */}
+    {/* ---------------------------------- */}
+
+    <div className="w-64 flex flex-col gap-6">
+
+      {/* DATE CARD */}
+      <div className="bg-white rounded-xl shadow-sm p-6 text-center border border-gray-400">
+        <div className="text-4xl font-bold text-gray-900">
+          {today.toLocaleDateString("en-US", { day: "numeric" })}
+        </div>
+        <div className="text-gray-500 text-lg -mt-1">
+          {today.toLocaleDateString("en-US", { weekday: "long" })}
+        </div>
+        <div className="text-gray-400 text-sm mt-1">
+          {today.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <ListCard title="Arrivals" items={arrivalsToday} />
-        <ListCard title="Departures" items={departuresToday} />
+      {/* OCCUPANCY CARD */}
+      <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-400 flex flex-col items-center flex-1 space-y-6">
+        <div className="font-semibold text-gray-700 mb-3">Occupancy</div>
+
+        {/* DONUT (placeholder – plug your chart here) */}
+        <div className="w-28 h-28 rounded-full border-[10px] border-blue-500 border-t-gray-300 flex items-center justify-center ">
+          <span className="text-xl font-semibold text-blue-600">
+            {Math.round((occupiedToday.length / rooms.length) * 100)}%
+          </span>
+        </div>
+
+        <div className="text-gray-500 text-sm mt-4">
+          {occupiedToday.length} / {rooms.length} occupied
+        </div>
       </div>
+
+      {/* UNITS BREAKDOWN */}
+      <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-400 space-y-3 ">
+        <div className="font-semibold text-gray-700">Units Overview</div>
+
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Available units</span>
+          <span className="font-medium">{rooms.length - occupiedToday.length}</span>
+        </div>
+
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Booked units</span>
+          <span className="font-medium">{occupiedToday.length}</span>
+        </div>
+
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Dirty rooms</span>
+          <span className="font-medium">{dirtyRooms.length}</span>
+        </div>
+      </div>
+      
     </div>
-  )
+
+    {/* ---------------------------------- */}
+    {/* RIGHT MAIN DASHBOARD               */}
+    {/* ---------------------------------- */}
+
+    <div className="flex-1 flex flex-col gap-6">
+       
+      {/* ACTIVITY TABS */}
+      <div className="bg-white rounded-xl shadow-md border border-gray-400 p-4 flex gap-6">
+
+        <div className="cursor-pointer flex flex-col items-center ">
+          <span className="text-lg font-semibold text-blue-600">{arrivalsToday.length}</span>
+          <span className="text-gray-600 text-sm">Arrivals</span>
+        </div>
+
+        <div className="cursor-pointer flex flex-col items-center">
+          <span className="text-lg font-semibold text-gray-800">{departuresToday.length}</span>
+          <span className="text-gray-600 text-sm">Departures</span>
+        </div>
+
+        <div className="cursor-pointer flex flex-col items-center">
+          <span className="text-lg font-semibold text-gray-800">{occupiedToday.length}</span>
+          <span className="text-gray-600 text-sm">In-house</span>
+        </div>
+
+        <div className="cursor-pointer flex flex-col items-center">
+          <span className="text-lg font-semibold text-gray-800">
+            {occupiedToday.length - arrivalsToday.length}
+          </span>
+          <span className="text-gray-600 text-sm">Stayovers</span>
+        </div>
+      </div>
+
+      {/* ---------------------------------- */}
+      {/* ARRIVALS TABLE                     */}
+      {/* ---------------------------------- */}
+      
+ 
+      <div className="bg-white rounded-xl shadow-md border border-gray-400">
+        <div className="px-4 py-2 bg-gray-100 border-b text-lg font-semibold text-gray-800 flex items-center gap-2">
+          <span className="text-blue-600">🛬</span> Arrivals Today
+        </div>
+
+        {arrivalsToday.length === 0 ? (
+          <div className="p-6 text-gray-500 text-sm">No arrivals today.</div>
+        ) : (
+          <div className="divide-y">
+            {arrivalsToday.map((b) => {
+              const notes = parseNotes(b.notes);
+
+              return (
+                <div key={b.id} className="p-4 flex gap-4">
+                  {/* LEFT: guest + stay + notes */}
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-gray-800">{b.guestName}</div>
+                        <div className="text-xs text-gray-500">
+                          Room {b.room} • {b.checkIn} → {b.checkOut}
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-gray-500 whitespace-nowrap">
+                        {b.adults} adults, {b.kids} kids
+                      </div>
+                    </div>
+
+                    {/* REMARKS / NOTES */}
+                    {notes.length > 0 && (
+                      <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                        {notes.map((n, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            {n.icon && <span className="mt-[1px]">{n.icon}</span>}
+                            <span>{n.text}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* RIGHT: action */}
+                  {/* <div className="self-center">
+                    <button className="px-4 py-1.5 rounded-full bg-blue-600 text-white text-xs font-medium hover:bg-blue-700">
+                      Check-in
+                    </button>
+                  </div> */}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+
+
+      {/* ---------------------------------- */}
+      {/* DEPARTURES TABLE                   */}
+      {/* ---------------------------------- */}
+   
+      <div className="bg-white rounded-xl shadow-md border border-gray-400">
+        <div className="px-4 py-2 bg-gray-100 border-b text-lg font-semibold text-gray-800 flex items-center gap-2">
+          <span className="text-green-600">🛫</span> Departures Today
+        </div>
+
+        {departuresToday.length === 0 ? (
+          <div className="p-6 text-gray-500 text-sm">No departures today.</div>
+        ) : (
+          <div className="divide-y">
+            {departuresToday.map((b) => {
+              const notes = parseNotes(b.notes);
+
+              return (
+                <div key={b.id} className="p-4 flex gap-4">
+                  {/* LEFT: guest + stay + notes */}
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-gray-800">{b.guestName}</div>
+                        <div className="text-xs text-gray-500">
+                          Room {b.room} • {b.checkIn} → {b.checkOut}
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-gray-500 whitespace-nowrap">
+                        {b.adults} adults, {b.kids} kids
+                      </div>
+                    </div>
+
+                    {/* REMARKS / NOTES */}
+                    {notes.length > 0 && (
+                      <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                        {notes.map((n, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            {n.icon && <span className="mt-[1px]">{n.icon}</span>}
+                            <span>{n.text}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* RIGHT: action */}
+                  <div className="self-center">
+                    <button className="px-4 py-1.5 rounded-full bg-gray-200 text-gray-800 text-xs font-medium hover:bg-gray-400">
+                      Check-out
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+
+    </div>
+  </div>
+);
+
 }
 
 function StatCard({ label, value, accent }) {
