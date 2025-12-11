@@ -1119,13 +1119,14 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
     
   }
 return (
-  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto p-6 sm:p-8 space-y-6 relative border border-sky-100">
- 
+  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto
+                  max-h-[90vh] flex flex-col relative border border-sky-100">
 
-    {/* Header */}
-    <div className="border-b pb-4 mb-2 flex items-center justify-between">
+    {/* ================= HEADER (fixed) ================= */}
+    <div className="p-6 sm:p-8 border-b flex items-center justify-between shrink-0">
       <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-xl shadow-md">
+        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-sky-400 to-blue-500
+                        flex items-center justify-center text-white text-xl shadow-md">
           🛏️
         </div>
         <div>
@@ -1139,153 +1140,156 @@ return (
       </div>
     </div>
 
-    {/* Guest & Room */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-          <span className="text-sky-500">👤</span> Guest Name
-        </label>
-        <input
-          type="text"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
-                     focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-          value={form.guestName}
-          onChange={update("guestName")}
+    {/* ================= BODY (scrollable) ================= */}
+    <div className="overflow-y-auto px-6 sm:px-8 py-6 space-y-6">
+
+      {/* Guest & Room */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <span className="text-sky-500">👤</span> Guest Name
+          </label>
+          <input
+            type="text"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
+                       focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+            value={form.guestName}
+            onChange={update("guestName")}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <span className="text-sky-500">🏡</span> Room
+          </label>
+          <select
+            value={form.room}
+            onChange={update("room")}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
+                       focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+          >
+            <option value="">Select room...</option>
+            {rooms.map((r) => (
+              <option key={r.id} value={r.name}>
+                {r.name} — {r.type} (capacity {r.capacity})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Stay Details */}
+      <div>
+        <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+          <span className="text-sky-500">📅</span> Stay Details
+        </h4>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Check-in</label>
+            <input
+              type="date"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
+                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+              value={form.checkIn}
+              onChange={update("checkIn")}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Check-out</label>
+            <input
+              type="date"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
+                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+              value={form.checkOut}
+              onChange={update("checkOut")}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Guests */}
+      <div>
+        <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+          <span className="text-sky-500">👨‍👩‍👧</span> Guests
+        </h4>
+
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Adults</label>
+            <input
+              type="number"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
+                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+              value={form.adults}
+              onChange={update("adults")}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Kids</label>
+            <input
+              type="number"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
+                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+              value={form.kids}
+              onChange={update("kids")}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Pricing & Channel */}
+      <div>
+        <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+          <span className="text-sky-500">💶</span> Pricing & Channel
+        </h4>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Channel</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
+                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+              value={form.channel}
+              onChange={update("channel")}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">
+              Price per day (€)
+            </label>
+            <input
+              type="number"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
+                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
+              value={form.price}
+              onChange={update("price")}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+          <span className="text-sky-500">📝</span> Notes
+        </h4>
+        <textarea
+          className="w-full px-3 py-2 h-28 border border-gray-300 rounded-lg bg-sky-50/40
+                     focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white resize-none"
+          value={form.notes}
+          onChange={update("notes")}
         />
       </div>
 
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-          <span className="text-sky-500">🏡</span> Room
-        </label>
-        <select
-          value={form.room}
-          onChange={update("room")}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
-                     focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-        >
-          <option value="">Select room...</option>
-          {rooms.map((r) => (
-            <option key={r.id} value={r.name}>
-              {r.name} — {r.type} (capacity {r.capacity})
-            </option>
-          ))}
-        </select>
-      </div>
     </div>
 
-    {/* Stay Details */}
-    <div>
-      <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-        <span className="text-sky-500">📅</span> Stay Details
-      </h4>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Check-in</label>
-          <input
-            type="date"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
-                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-            value={form.checkIn}
-            onChange={update("checkIn")}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Check-out</label>
-          <input
-            type="date"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
-                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-            value={form.checkOut}
-            onChange={update("checkOut")}
-          />
-        </div>
-      </div>
-    </div>
-
-    {/* Guests */}
-    <div>
-      <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-        <span className="text-sky-500">👨‍👩‍👧</span> Guests
-      </h4>
-
-      <div className="grid grid-cols-2 gap-6">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Adults</label>
-          <input
-            type="number"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
-                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-            value={form.adults}
-            onChange={update("adults")}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Kids</label>
-          <input
-            type="number"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
-                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-            value={form.kids}
-            onChange={update("kids")}
-          />
-        </div>
-      </div>
-    </div>
-
-    {/* Pricing & Channel */}
-    <div>
-      <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-        <span className="text-sky-500">💶</span> Pricing & Channel
-      </h4>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Channel</label>
-          <input
-            type="text"
-            placeholder="Booking source"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
-                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-            value={form.channel}
-            onChange={update("channel")}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">
-            Price per day (€)
-          </label>
-          <input
-            type="number"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
-                       focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-            value={form.price}
-            onChange={update("price")}
-          />
-        </div>
-      </div>
-    </div>
-
-    {/* Notes */}
-    <div>
-      <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-        <span className="text-sky-500">📝</span> Notes
-      </h4>
-      <textarea
-        className="w-full px-3 py-2 h-28 border border-gray-300 rounded-lg bg-sky-50/40
-                   focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white resize-none"
-        placeholder="Arrival details, deposits, special requests…"
-        value={form.notes}
-        onChange={update("notes")}
-      />
-    </div>
-
-    {/* Footer Buttons */}
-    <div className="pt-4 border-t flex justify-between items-center gap-3">
+    {/* ================= FOOTER (fixed) ================= */}
+    <div className="p-6 sm:p-8 border-t flex justify-between items-center gap-3 shrink-0">
       {booking && (
         <button
           onClick={onDelete}
@@ -1305,6 +1309,7 @@ return (
     </div>
   </div>
 );
+
 
 
 
