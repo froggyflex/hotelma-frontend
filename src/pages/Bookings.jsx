@@ -203,7 +203,7 @@ function MonthlyCalendar({
         <h2 className="font-semibold text-lg">
           {format(monthDate, "MMMM yyyy")}
         </h2>
-nbcmv  
+ 
         <button
           onClick={onNextMonth}
           className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200"
@@ -276,7 +276,7 @@ nbcmv
                   draggable
                   onDragStart={(e) => onDragStart(e, b)}
                   onClick={() => onEditBooking(b)}
-                  className={`absolute top-1 h-[42px] rounded px-2 py-1 shadow flex items-center cursor-pointer ${
+                  className={`  absolute top-1 h-[42px] rounded px-2 py-1 shadow flex items-center cursor-pointer ${
                     b.colorIndex === 0
                       ? "bg-blue-200 border border-blue-500"
                       : "bg-blue-300 border border-blue-600"
@@ -293,8 +293,8 @@ nbcmv
                     </span>
                   )}
 
-                  <div className="flex-1">
-                    <div className="font-semibold truncate">{b.guestName}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate max-w-full">{b.guestName}</div>
                     <div className="text-xs opacity-80 truncate">
                       {b.channel} • €{b.price}/night • {Math.max(
                                                         1,
@@ -1051,7 +1051,7 @@ function BookingCard({
         zIndex: fromOverlay ? 9999 : 10
       }}
     >
-      <div className="font-semibold truncate">{booking.guestName}</div>
+      <div className="text-sm font-medium truncate max-w-full">{booking.guestName}</div>
       <div className="text-[10px] opacity-70">
         {booking.channel} • €{booking.price}/night
       </div>
@@ -1077,29 +1077,31 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
       checkIn: "",
       checkOut: "",
       adults: 2,
-      kids: 0,
+      kids: "",
       channel: "Direct",
-      price: 0,
+      totalAmount: "",
+      deposit: 0,
+      price: "",
       notes: "",
     }
   );
  
   const update = (field) => (e) =>
-    
+  {
     setForm({
       ...form,
       [field]:
-        field === "price" || field === "adults" || field === "kids"  
-          ? Number(e.target.value || 0)
-          : e.target.value,
+          e.target.value,
     });
-
+    
+  }
   const submit = async () => {
     if (
       !form.guestName ||
       !form.room ||
       !form.checkIn ||
-      !form.checkOut
+      !form.checkOut ||
+      !form.totalAmount
     ) {
       alert("Please fill in all required fields.");
       return;
@@ -1118,6 +1120,39 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
      
     
   }
+  const nights =
+    form.checkIn && form.checkOut
+    ? differenceInCalendarDays(
+        new Date(form.checkOut),
+        new Date(form.checkIn)
+      )
+    : 0;
+
+  const pricePerNight =
+     nights > 0 && Number(form.totalAmount)
+    ? (Number(form.totalAmount) / nights).toFixed(2)
+    : "0.00";
+
+    useEffect(() => {
+      if (nights > 0 && Number(form.totalAmount)) {
+        const computed = (
+          Number(form.totalAmount) / nights
+        ).toFixed(2);
+
+        if (computed !== form.price) {
+          setForm((prev) => ({
+            ...prev,
+            price: computed,
+          }));
+        }
+      } else if (form.price !== "") {
+        setForm((prev) => ({
+          ...prev,
+          price: "",
+        }));
+      }
+    }, [form.totalAmount, nights]);
+   
 return (
   <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto
                   max-h-[90vh] flex flex-col relative border border-sky-100">
@@ -1186,7 +1221,7 @@ return (
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Check-in</label>
+              <label className="text-sm font-medium text-gray-700">Check-in</label>
             <input
               type="date"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
@@ -1206,7 +1241,43 @@ return (
               onChange={update("checkOut")}
             />
           </div>
+          
+
+
         </div>
+            {form.checkIn && form.checkOut && nights > 0 && (
+              <div
+                className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60
+                          px-4 py-3 flex flex-col gap-1"
+              >
+                <div className="flex items-center gap-2 text-sky-700 font-medium text-sm">
+               
+                  Stay duration
+                </div>
+
+                <div className="text-2xl font-semibold text-sky-900 leading-tight">
+                  {nights} {nights === 1 ? "night" : "nights"}
+                </div>
+
+                <div className="text-xs text-sky-600">
+                  Check-in:{" "}
+                  {new Date(form.checkIn).toLocaleDateString("en-GB", {
+                    weekday: "short",
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                  {" → "}
+                  Check-out:{" "}
+                  {new Date(form.checkOut).toLocaleDateString("en-GB", {
+                    weekday: "short",
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </div>
+              </div>
+            )}
       </div>
 
       {/* Guests */}
@@ -1243,34 +1314,69 @@ return (
       {/* Pricing & Channel */}
       <div>
         <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-          <span className="text-sky-500">💶</span> Pricing & Channel
+          <span className="text-sky-500">💶</span> Pricing & Deposit
         </h4>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Channel</label>
+            <label className="text-sm font-medium text-gray-700">Deposit</label>
             <input
               type="text"
+              inputMode="decimal"
+              pattern="[0-9]*"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
                          focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-              value={form.channel}
-              onChange={update("channel")}
+              value={form.deposit}
+              onChange={(e) => {
+                const v = e.target.value.replace(",", ".");
+                
+                if (/^\d*\.?\d*$/.test(v)) {
+                  update("deposit")({ target: { value: v } });
+                }
+              }}
             />
           </div>
 
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">
-              Price per day (€)
+              Total Amount (€)
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
                          focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-              value={form.price}
-              onChange={update("price")}
+              value={form.totalAmount}
+              onChange={(e) => {
+                const v = e.target.value.replace(",", ".");
+                
+                if (/^\d*\.?\d*$/.test(v)) {
+                  update("totalAmount")({ target: { value: v } });
+                  
+                }
+              }}
             />
           </div>
         </div>
+            {form.totalAmount  && (
+              <div
+                className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60
+                          px-4 py-3 flex flex-col gap-1"
+              >
+                <div className="flex items-center gap-2 text-sky-700 font-medium text-sm">
+               
+                 Summary
+                </div>
+
+                <div className="text-2xl font-semibold text-sky-900 leading-tight">
+                   {"Due payable"} {form.totalAmount - form.deposit} {"(€)"} 
+                  <br></br><br></br>
+                  {"Price per night"} {pricePerNight} {"(€)"}
+                </div>
+  
+              </div>
+            )}
       </div>
 
       {/* Notes */}
