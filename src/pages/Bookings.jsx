@@ -67,7 +67,11 @@ function DraggableBooking({
     transform
   });
 }
- 
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
 
 const ROOM_LABEL_WIDTH = 80;
 const ROW_HEIGHT = 60;
@@ -81,6 +85,7 @@ function MonthlyCalendar({
   bookings,
   onPrevMonth,
   onNextMonth,
+  onSetMonth,  
   onMoveBooking,
   onEditBooking
 
@@ -199,10 +204,50 @@ function MonthlyCalendar({
         >
           ◀ Prev
         </button>
-
-        <h2 className="font-semibold text-lg">
-          {format(monthDate, "MMMM yyyy")}
-        </h2>
+<div className="mt-4">
+        {/* Month dropdown */}
+          <select
+            value={monthDate.getMonth()}
+            onChange={(e) => {
+              const newMonth = Number(e.target.value);
+              const d = new Date(monthDate);
+              d.setMonth(newMonth);
+              onSetMonth(d);
+            }}
+            className="px-2 py-1 rounded-md border border-slate-300
+                      bg-white text-sm font-medium
+                      focus:ring-2 focus:ring-sky-400"
+          >
+            {MONTHS.map((m, i) => (
+              <option key={m} value={i}>
+                {m}
+              </option>
+            ))}
+          </select>
+              
+          {/* Year dropdown */}
+          <select
+            value={monthDate.getFullYear()}
+            onChange={(e) => {
+              const newYear = Number(e.target.value);
+              const d = new Date(monthDate);
+              d.setFullYear(newYear);
+              onSetMonth(d);
+            }}
+            className="px-2 py-1 rounded-md border border-slate-300
+                      bg-white text-sm font-medium
+                      focus:ring-2 focus:ring-sky-400"
+          >
+            {Array.from({ length: 5 }).map((_, i) => {
+              const year = new Date().getFullYear() - 1 + i;
+              return (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              );
+            })}
+          </select>
+ </div>
  
         <button
           onClick={onNextMonth}
@@ -374,13 +419,13 @@ export default function Bookings() {
   );
 
  
-function deleteBooking(id) {
-  if (!window.confirm("Done")) return;
+  function deleteBooking(id) {
+    if (!window.confirm("Done")) return;
 
-  setBookings((prev) => prev.filter((b) => b.id !== id));
-  setEditingBooking(null); // close modal
+    setBookings((prev) => prev.filter((b) => b.id !== id));
+    setEditingBooking(null); // close modal
 
-}
+  }
     
     const bookingsByMonth = React.useMemo(() => {
       const map = {};
@@ -446,7 +491,7 @@ function deleteBooking(id) {
   // reload bookings
   const fresh = await axios.get(`${API}/bookings`);
   setBookings(fresh.data || []);
-};
+  };
 
   /* -------------------------------------------------------
      BOOKING REQUEST CHECKER
@@ -515,7 +560,7 @@ function deleteBooking(id) {
   }
 
   return swaps;
-};
+  };
 
     const handleCheckerRequest = async () => {
       setAvailableTypes([]);
@@ -586,8 +631,12 @@ function deleteBooking(id) {
       freeRooms,
       validSwaps
     });
-};
 
+    };
+
+    const handleSetMonth = (date) => {
+      setMonthDate(date);
+    };
   /* -------------------------------------------------------
      RENDER
   --------------------------------------------------------- */
@@ -718,6 +767,7 @@ function deleteBooking(id) {
               bookings={bookings}
               monthDate={monthDate}
               setMonthDate={setMonthDate}
+              onSetMonth={handleSetMonth}
               onMoveBooking={handleMoveBooking}
               onPrevMonth={() =>
                 setMonthDate(
