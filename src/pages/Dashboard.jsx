@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
+import {
+  format,
+  parseISO
+} from "date-fns";
 
 const API = import.meta.env.VITE_API_URL;
 const URL  = `${API}/bookings`;
@@ -86,6 +90,9 @@ function parseNotes(text) {
 
 const norm = (d) => new Date(d).toISOString().slice(0, 10);
 
+
+
+
 export default function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
@@ -106,6 +113,41 @@ export default function Dashboard() {
   )
 
   const dirtyRooms = rooms.filter((r) => r.status === 'dirty')
+ 
+  // -------------------------------
+  // REVENUE CALCULATIONS
+  // -------------------------------
+
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+
+  const overlapsCurrentMonth = (b) => {
+    const ci = new Date(b.checkIn);
+    const co = new Date(b.checkOut);
+    return !(co <= monthStart || ci >= monthEnd);
+  };
+
+  const monthlyExpectedRevenue = bookings
+    .filter(overlapsCurrentMonth)
+    .reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+
+  const totalExpectedRevenue = bookings.reduce(
+    (sum, b) => sum + Number(b.totalAmount || 0),
+    0
+  );
+
+const bookingsByMonth = React.useMemo(() => {
+      const map = {};
+
+      bookings.forEach((b) => {
+        const month = format(parseISO(b.checkIn), "MMMM yyyy");
+        
+        map[month] = (map[month] || 0) + 1;
+      });
+
+      return Object.entries(map);  
+}, [bookings]);
+
 
 return (
   <div className="w-full flex gap-6 px-6 py-4">
@@ -320,9 +362,46 @@ return (
         )}
       </div>
 
+      {/* ---------------------------------- */}
+      {/* REVENUE OVERVIEW                   */}
+      {/* ---------------------------------- */}
 
+       <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl shadow-md">
+          <h3 className="font-semibold mb-2">📅 Monthly Overview</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {bookingsByMonth.map(([month, count]) => (
+              <div key={month} className="p-2 bg-slate-50 rounded border">
+                <div className="font-medium">{month}</div>
+                <div className="text-sm text-slate-600">{count} bookings</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-blue-400">
+          <div className="text-sm text-blue-700 font-medium">
+            Expected revenue — {today.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+          </div>
+          <div className="mt-2 text-3xl font-semibold text-blue-900">
+            €{monthlyExpectedRevenue.toLocaleString()}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-emerald-400">
+          <div className="text-sm text-emerald-700 font-medium">
+            Expected revenue — All bookings
+          </div>
+          <div className="mt-2 text-3xl font-semibold text-emerald-900">
+            €{totalExpectedRevenue.toLocaleString()}
+          </div>
+        </div>
+      </div>  
     </div>
+    
   </div>
+  
 );
 
 }
