@@ -46,7 +46,7 @@ function AppLayout() {
             Housekeeping
           </NavLink>
           <NavLink to="/invoices" className={navLinkClass}>
-            Invoices
+            AADE
           </NavLink>
           <NavLink to="/settings" className={navLinkClass}>
             Settings

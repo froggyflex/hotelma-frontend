@@ -1130,6 +1130,7 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
       kids: "",
       channel: "Direct",
       totalAmount: "",
+      paid: false,
       deposit: 0,
       price: "",
       notes: "",
@@ -1203,6 +1204,13 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
       }
     }, [form.totalAmount, nights]);
    
+const total = Number(form.totalAmount || 0);
+const deposit = Number(form.deposit || 0);
+
+const remaining = form.paid
+  ? 0
+  : Math.max(0, total - deposit);
+
 return (
   <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto
                   max-h-[90vh] flex flex-col relative border border-sky-100">
@@ -1409,24 +1417,68 @@ return (
             />
           </div>
         </div>
-            {form.totalAmount  && (
-              <div
-                className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60
-                          px-4 py-3 flex flex-col gap-1"
-              >
-                <div className="flex items-center gap-2 text-sky-700 font-medium text-sm">
-               
-                 Summary
+          {form.totalAmount && (
+            <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3 space-y-3">
+
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium text-sky-700">
+                  💳 Payment Summary
                 </div>
 
-                <div className="text-2xl font-semibold text-sky-900 leading-tight">
-                   {"Due payable"} {form.totalAmount - form.deposit} {"(€)"} 
-                  <br></br><br></br>
-                  {"Price per night"} {pricePerNight} {"(€)"}
-                </div>
-  
+                <label className="flex items-center gap-2 text-sm text-sky-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.paid}
+                    onChange={(e) =>  
+                      setForm((prev) => ({
+                        ...prev,
+                        paid: e.target.checked,
+                      }))
+                    }
+                    className="rounded border-sky-300 text-sky-600 focus:ring-sky-400"
+                  />
+                  Paid in full
+                </label>
               </div>
-            )}
+
+              {/* Amounts */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-slate-500">Total stay</p>
+                  <p className="text-lg font-semibold text-slate-800">
+                    €{total.toFixed(2)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    {form.paid ? "Collected" : "Remaining due"}
+                  </p>
+                  <p
+                    className={`text-lg font-semibold ${
+                      form.paid ? "text-emerald-600" : "text-sky-900"
+                    }`}
+                  >
+                    €{remaining.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Secondary info */}
+              {!form.paid && deposit > 0 && (
+                <div className="text-xs text-slate-500">
+                  Deposit received: €{deposit.toFixed(2)}
+                </div>
+              )}
+
+              {form.paid && (
+                <div className="text-xs text-emerald-600 font-medium">
+                  ✓ Booking fully paid
+                </div>
+              )}
+            </div>
+          )}
       </div>
 
       {/* Notes */}

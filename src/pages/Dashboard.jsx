@@ -148,6 +148,36 @@ const bookingsByMonth = React.useMemo(() => {
       return Object.entries(map);  
 }, [bookings]);
 
+const fullyPaidExpectedRevenue = bookings
+  .filter((b) => b.paid === true)
+  .reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+
+
+  // -------------------------------
+// TODAY AT A GLANCE
+// -------------------------------
+
+// Next arrival (today, earliest check-in)
+const nextArrival = arrivalsToday[0] || null;
+
+// Next departure (today)
+const nextDeparture = departuresToday[0] || null;
+
+// Outstanding balance today
+const outstandingToday = arrivalsToday.reduce((sum, b) => {
+  if (b.paid) return sum;
+  const total = Number(b.totalAmount || 0);
+  const deposit = Number(b.deposit || 0);
+  return sum + Math.max(0, total - deposit);
+}, 0);
+
+// Special notes summary (using your existing parsed notes)
+const notesSummary = {
+  flights: arrivalsToday.filter(b => b.flight).length,
+  lateArrivals: arrivalsToday.filter(b => b.lateArrival).length,
+  deposits: arrivalsToday.filter(b => Number(b.deposit) > 0).length,
+};
+
 
 return (
   <div className="w-full flex gap-6 px-6 py-4">
@@ -212,8 +242,51 @@ return (
     {/* ---------------------------------- */}
     {/* RIGHT MAIN DASHBOARD               */}
     {/* ---------------------------------- */}
+    
+
 
     <div className="flex-1 flex flex-col gap-6">
+ 
+      {/* ---------------------------------- */}
+      {/* REVENUE OVERVIEW                   */}
+      {/* ---------------------------------- */}
+        <div className="bg-gradient-to-br from-slate-50 to-white border border-slate-300 rounded-2xl p-6 shadow-md">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            💶 Revenue Overview
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Monthly */}
+            <div className="bg-white rounded-xl p-5 border border-blue-400">
+              <div className="text-sm text-blue-700 font-medium">
+                {today.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+              </div>
+              <div className="mt-2 text-3xl font-semibold text-blue-900">
+                €{monthlyExpectedRevenue.toLocaleString()}
+              </div>
+            </div>
+
+            {/* Total */}
+            <div className="bg-white rounded-xl p-5 border border-slate-400">
+              <div className="text-sm text-slate-600 font-medium">
+                All bookings
+              </div>
+              <div className="mt-2 text-3xl font-semibold text-slate-900">
+                €{totalExpectedRevenue.toLocaleString()}
+              </div>
+            </div>
+
+            {/* Paid */}
+            <div className="bg-white rounded-xl p-5 border border-emerald-400">
+              <div className="text-sm text-emerald-700 font-medium">
+                Fully paid
+              </div>
+              <div className="mt-2 text-3xl font-semibold text-emerald-900">
+                €{fullyPaidExpectedRevenue.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
        
       {/* ACTIVITY TABS */}
       <div className="bg-white rounded-xl shadow-md border border-gray-400 p-4 flex gap-6">
@@ -362,42 +435,63 @@ return (
         )}
       </div>
 
-      {/* ---------------------------------- */}
-      {/* REVENUE OVERVIEW                   */}
-      {/* ---------------------------------- */}
+          
+    <div className="rounded-xl border border-slate-300 bg-white p-5 shadow-sm">
+  <h3 className="text-sm font-semibold text-slate-700 mb-4">
+    Today at a glance
+  </h3>
 
-       <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl shadow-md">
-          <h3 className="font-semibold mb-2">📅 Monthly Overview</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {bookingsByMonth.map(([month, count]) => (
-              <div key={month} className="p-2 bg-slate-50 rounded border">
-                <div className="font-medium">{month}</div>
-                <div className="text-sm text-slate-600">{count} bookings</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-5 border border-blue-400">
-          <div className="text-sm text-blue-700 font-medium">
-            Expected revenue — {today.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-          </div>
-          <div className="mt-2 text-3xl font-semibold text-blue-900">
-            €{monthlyExpectedRevenue.toLocaleString()}
-          </div>
+    {/* Next arrival */}
+    <div>
+      <span className="text-slate-500">🛬 Next arrival</span>
+      <div className="font-medium text-slate-800">
+        {nextArrival
+          ? `${nextArrival.guestName} — Room ${nextArrival.room}`
+          : "No arrivals today"}
+      </div>
+      {nextArrival?.flight && (
+        <div className="text-xs text-slate-500">
+          Flight: {nextArrival.flight}
         </div>
+      )}
+    </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-5 border border-emerald-400">
-          <div className="text-sm text-emerald-700 font-medium">
-            Expected revenue — All bookings
-          </div>
-          <div className="mt-2 text-3xl font-semibold text-emerald-900">
-            €{totalExpectedRevenue.toLocaleString()}
-          </div>
-        </div>
-      </div>  
+    {/* Next departure */}
+    <div>
+      <span className="text-slate-500">🛫 Next departure</span>
+      <div className="font-medium text-slate-800">
+        {nextDeparture
+          ? `${nextDeparture.guestName} — Room ${nextDeparture.room}`
+          : "No departures today"}
+      </div>
+    </div>
+
+    {/* Outstanding balance */}
+    <div>
+      <span className="text-slate-500">💶 Outstanding today</span>
+      <div className="font-semibold text-sky-700">
+        €{outstandingToday.toLocaleString()}
+      </div>
+    </div>
+
+    {/* Notes summary */}
+    <div>
+      <span className="text-slate-500">📝 Special notes</span>
+      <div className="text-slate-700">
+        {notesSummary.flights > 0 && `${notesSummary.flights} flights`}
+        {notesSummary.lateArrivals > 0 && ` · ${notesSummary.lateArrivals} late arrivals`}
+        {notesSummary.deposits > 0 && ` · ${notesSummary.deposits} deposits`}
+        {(notesSummary.flights +
+          notesSummary.lateArrivals +
+          notesSummary.deposits) === 0 && "None"}
+      </div>
+    </div>
+
+  </div>
+</div>
+
     </div>
     
   </div>
