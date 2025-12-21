@@ -136,17 +136,21 @@ export default function Dashboard() {
     0
   );
 
-const bookingsByMonth = React.useMemo(() => {
-      const map = {};
+  const totalDeposits = bookings.reduce(
+    (sum, b) => sum + Number(b.deposit || 0),
+    0
+  );
+  const bookingsByMonth = React.useMemo(() => {
+        const map = {};
 
-      bookings.forEach((b) => {
-        const month = format(parseISO(b.checkIn), "MMMM yyyy");
-        
-        map[month] = (map[month] || 0) + 1;
-      });
+        bookings.forEach((b) => {
+          const month = format(parseISO(b.checkIn), "MMMM yyyy");
+          
+          map[month] = (map[month] || 0) + 1;
+        });
 
-      return Object.entries(map);  
-}, [bookings]);
+        return Object.entries(map);  
+  }, [bookings]);
 
 const fullyPaidExpectedRevenue = bookings
   .filter((b) => b.paid === true)
@@ -272,9 +276,11 @@ return (
                 All bookings
               </div>
               <div className="mt-2 text-3xl font-semibold text-slate-900">
-                €{totalExpectedRevenue.toLocaleString()}
+                €{totalExpectedRevenue.toLocaleString()} - Deposits: €{totalDeposits.toLocaleString()}
               </div>
             </div>
+
+        
 
             {/* Paid */}
             <div className="bg-white rounded-xl p-5 border border-emerald-400">
