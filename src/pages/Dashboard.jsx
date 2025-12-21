@@ -276,7 +276,11 @@ return (
                 All bookings
               </div>
               <div className="mt-2 text-3xl font-semibold text-slate-900">
-                €{totalExpectedRevenue.toLocaleString()} - Deposits: €{totalDeposits.toLocaleString()}
+                €{totalExpectedRevenue.toLocaleString()} 
+                
+                <div className="text-xs text-slate-500">
+                  Deposits received: €{totalDeposits.toLocaleString()}
+                </div>
               </div>
             </div>
 
