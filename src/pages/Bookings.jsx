@@ -637,6 +637,30 @@ export default function Bookings() {
     const handleSetMonth = (date) => {
       setMonthDate(date);
     };
+
+        // Group bookings by year → month
+    const bookingsByYearMonth = bookings.reduce((acc, b) => {
+      const d = new Date(b.checkIn);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+
+      acc[y] ??= Array(12).fill(0);
+      acc[y][m] += 1;
+
+      return acc;
+    }, {});
+
+    const years = Object.keys(bookingsByYearMonth)
+      .map(Number)
+      .sort((a, b) => a - b);
+
+    // Helper: density class
+    const getDensityClass = (count) => {
+      if (count >= 20) return "bg-blue-600 text-white";
+      if (count >= 10) return "bg-blue-400 text-white";
+      if (count > 0) return "bg-blue-100 text-blue-700";
+      return "bg-white text-slate-400";
+    };
   /* -------------------------------------------------------
      RENDER
   --------------------------------------------------------- */
@@ -654,13 +678,70 @@ export default function Bookings() {
         />
         <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl shadow-md">
           <h3 className="font-semibold mb-2">📅 Monthly Overview</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {bookingsByMonth.map(([month, count]) => (
-              <div key={month} className="p-2 bg-slate-50 rounded border">
-                <div className="font-medium">{month}</div>
-                <div className="text-sm text-slate-600">{count} bookings</div>
-              </div>
-            ))}
+          <div className="mb-6 rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                📅 Booking Timeline
+              </h3>
+              <span className="text-xs text-slate-500">
+                Quick jump by year & month
+              </span>
+            </div>
+
+            {/* Year selector */}
+            <div className="flex gap-2 mb-3 flex-wrap">
+              {years.map((year) => (
+                <button
+                  key={year}
+                  onClick={() =>
+                    setMonthDate(new Date(year, monthDate.getMonth(), 1))
+                  }
+                  className={`px-3 py-1 rounded-md text-sm border transition
+                    ${
+                      year === monthDate.getFullYear()
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100"
+                    }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+
+            {/* Month strip */}
+            <div className="grid grid-cols-12 gap-1">
+              {Array.from({ length: 12 }).map((_, m) => {
+                const year = monthDate.getFullYear();
+                const count = bookingsByYearMonth[year]?.[m] || 0;
+                const isActive = m === monthDate.getMonth();
+
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setMonthDate(new Date(year, m, 1))}
+                    title={`${format(new Date(year, m, 1), "MMMM yyyy")} — ${count} bookings`}
+                    className={`relative rounded-md px-1 py-2 text-xs border transition
+                      ${getDensityClass(count)}
+                      ${isActive ? "ring-2 ring-blue-500" : "border-slate-300"}
+                    `}
+                  >
+                    {format(new Date(2000, m, 1), "MMM")}
+
+                    {count > 0 && (
+                      <span className="absolute -top-1 -right-1 text-[10px] px-1 rounded-full bg-slate-800 text-white">
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer hint */}
+            <div className="mt-3 text-xs text-slate-500">
+              Highlight intensity reflects booking volume
+            </div>
           </div>
         </div>
 
