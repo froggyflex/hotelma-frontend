@@ -103,17 +103,6 @@ export default function Dashboard() {
   }, [])
 
 
-//  useEffect(() => {
-//   async function initNotifications() {
-//     const token = await getFcmToken();
-//     if (token) {
-//       console.log("FCM TOKEN:", token);
-//     }
-//   }
-
-//   initNotifications();
-// }, []); 
-
 useEffect(() => {
   async function registerToken() {
     const token = await getFcmToken();
@@ -123,7 +112,7 @@ useEffect(() => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ token }),
     });
