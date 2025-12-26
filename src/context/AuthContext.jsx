@@ -15,7 +15,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async ({ email, password }) => {
-    if (email === "nikospaola" && password === "6563") {
+    if (email === "nikospaola" && password === "6563" || email === "admin" && password === "6563") {
       const userData = { email };
       localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
