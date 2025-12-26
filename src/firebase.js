@@ -1,7 +1,8 @@
 import { initializeApp } from "firebase/app";
+const API = import.meta.env.FIREBASE_API_KEY;
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDONoSwDvlpNIim8RLIj1pmqqxX-UsD5KY",
+  apiKey: API,
   authDomain: "hotelma-pms.firebaseapp.com",
   projectId: "hotelma-pms",
   storageBucket: "hotelma-pms.firebasestorage.app",
