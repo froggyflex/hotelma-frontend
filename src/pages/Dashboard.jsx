@@ -96,23 +96,25 @@ const norm = (d) => new Date(d).toISOString().slice(0, 10);
 export default function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
-
+  
+  const { tokenA } = useAuth();
   useEffect(() => {
     axios.get(URL).then((res) => setBookings(res.data))
     axios.get(URLR).then((res) => setRooms(res.data))
   }, [])
 
+ 
 
 useEffect(() => {
   async function registerToken() {
     const token = await getFcmToken();
     if (!token) return;
 
-    await fetch("/api/notifications/register-token", {
+    await fetch("https://hotelma.onrender.com/api/notifications/register-token", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${tokenA}`,
       },
       body: JSON.stringify({ token }),
     });
