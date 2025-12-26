@@ -1,14 +1,10 @@
-import dotenv from "dotenv";
-
-dotenv.config();
-
-importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js");
+ importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js");
 
-const API = process.env.FIREBASE_API_KEY;
+//const API = process.env.FIREBASE_API_KEY;
 
 firebase.initializeApp({
-  apiKey: API,
+  apiKey: "AIzaSyDONoSwDvlpNIim8RLIj1pmqqxX-UsD5KY",
   authDomain: "hotelma-pms.firebaseapp.com",
   projectId: "hotelma-pms",
   messagingSenderId: "482844507448",

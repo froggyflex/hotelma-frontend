@@ -1,12 +1,9 @@
-import dotenv from "dotenv";
-
-dotenv.config();
 
 import { initializeApp } from "firebase/app";
-const API = process.env.FIREBASE_API_KEY;
+//onst API = process.env.FIREBASE_API_KEY;
 
 const firebaseConfig = {
-  apiKey: API,
+  apiKey: "AIzaSyDONoSwDvlpNIim8RLIj1pmqqxX-UsD5KY",
   authDomain: "hotelma-pms.firebaseapp.com",
   projectId: "hotelma-pms",
   storageBucket: "hotelma-pms.firebasestorage.app",
