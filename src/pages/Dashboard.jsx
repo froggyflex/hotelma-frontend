@@ -110,7 +110,7 @@ useEffect(() => {
     const token = await getFcmToken();
     if (!token) return;
 
-    await fetch("https://hotelma.onrender.com/api/notifications/register-token", {
+    await fetch("https://hotelma.onrender.com/register-token", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
