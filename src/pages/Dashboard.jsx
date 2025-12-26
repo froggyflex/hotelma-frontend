@@ -5,7 +5,7 @@ import {
   parseISO
 } from "date-fns";
 
-const { getFcmToken } = await import("./firebaseMessaging");
+
 const API = import.meta.env.VITE_API_URL;
 const URL  = `${API}/bookings`;
 const URLR = `${API}/rooms`;
@@ -94,7 +94,7 @@ const norm = (d) => new Date(d).toISOString().slice(0, 10);
 
 
 
-export default function Dashboard() {
+export default async function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
 
@@ -103,6 +103,7 @@ export default function Dashboard() {
     axios.get(URLR).then((res) => setRooms(res.data))
   }, [])
 
+  const { getFcmToken } = await import("./firebaseMessaging");
   useEffect(() => {
     getFcmToken().then(token => {
       if (token) {
