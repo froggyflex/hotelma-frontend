@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+const { getFcmToken } = await import("./firebaseMessaging");
 
 const navLinkClass = ({ isActive }) =>
   "px-3 py-2 rounded-md text-sm font-medium " +
@@ -21,6 +22,15 @@ const navLinkClass = ({ isActive }) =>
 /* ========================= */
 /* APP LAYOUT (AUTHED ONLY)  */
 /* ========================= */
+
+useEffect(() => {
+  getFcmToken().then(token => {
+    if (token) {
+      console.log("FCM TOKEN (Vercel):", token);
+    }
+  });
+}, []);
+
 function AppLayout() {
   const { logout } = useAuth();  
 

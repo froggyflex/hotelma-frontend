@@ -5,16 +5,12 @@ firebase.initializeApp({
   apiKey: "AIzaSyDONoSwDvlpNIim8RLIj1pmqqxX-UsD5KY",
   authDomain: "hotelma-pms.firebaseapp.com",
   projectId: "hotelma-pms",
-  storageBucket: "hotelma-pms.firebasestorage.app",
   messagingSenderId: "482844507448",
   appId: "1:482844507448:web:f3d1ff1aa0c6f34fe215cd",
 });
 
 const messaging = firebase.messaging();
 
-/**
- * Background push handler
- */
 messaging.onBackgroundMessage(payload => {
   const { title, body } = payload.notification || {};
   const link = payload.data?.link || "/";
@@ -25,20 +21,14 @@ messaging.onBackgroundMessage(payload => {
   });
 });
 
-/**
- * Notification click handler
- */
 self.addEventListener("notificationclick", event => {
   event.notification.close();
-
   const link = event.notification.data?.link || "/";
 
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then(clientList => {
-      for (const client of clientList) {
-        if (client.url.includes(link) && "focus" in client) {
-          return client.focus();
-        }
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+      for (const client of list) {
+        if (client.url.includes(link)) return client.focus();
       }
       return clients.openWindow(link);
     })
