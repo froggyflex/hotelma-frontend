@@ -5,6 +5,7 @@ import {
   parseISO
 } from "date-fns";
 
+import { getFcmToken } from "../firebaseMessaging";
 
 const API = import.meta.env.VITE_API_URL;
 const URL  = `${API}/bookings`;
@@ -91,9 +92,7 @@ function parseNotes(text) {
 
 const norm = (d) => new Date(d).toISOString().slice(0, 10);
 
-
- const { getFcmToken } = await import("../firebaseMessaging");
-
+ 
 export default function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
@@ -103,17 +102,18 @@ export default function Dashboard() {
     axios.get(URLR).then((res) => setRooms(res.data))
   }, [])
 
- 
-  useEffect(() => {
-    getFcmToken().then(token => {
-      if (token) {
-        console.log("FCM TOKEN (Vercel):", token);
-      }
-      else{
-        console.log('Error')
-      }
-    });
-  }, []);
+ useEffect(() => {
+  async function initNotifications() {
+    const token = await getFcmToken();
+    if (token) {
+      console.log("FCM TOKEN:", token);
+    }
+  }
+
+  initNotifications();
+}, []); 
+
+   
   //from the database => "2025-11-24"
   const todayStr = new Date().toISOString().slice(0, 10)
   const today = new Date();    
