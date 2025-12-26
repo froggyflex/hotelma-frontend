@@ -28,6 +28,9 @@ useEffect(() => {
     if (token) {
       console.log("FCM TOKEN (Vercel):", token);
     }
+    else{
+      console.log('Error')
+    }
   });
 }, []);
 
