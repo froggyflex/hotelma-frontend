@@ -65,7 +65,7 @@ function parseNotes(text) {
       }
     }
 
-    // 🔍 Detect keywords
+    // Detect keywords
     const keywords = [
       { word: "cot", icon: "🛏️" },
       { word: "baby", icon: "👶" },
@@ -102,17 +102,35 @@ export default function Dashboard() {
     axios.get(URLR).then((res) => setRooms(res.data))
   }, [])
 
- useEffect(() => {
-  async function initNotifications() {
+
+//  useEffect(() => {
+//   async function initNotifications() {
+//     const token = await getFcmToken();
+//     if (token) {
+//       console.log("FCM TOKEN:", token);
+//     }
+//   }
+
+//   initNotifications();
+// }, []); 
+
+useEffect(() => {
+  async function registerToken() {
     const token = await getFcmToken();
-    if (token) {
-      console.log("FCM TOKEN:", token);
-    }
+    if (!token) return;
+
+    await fetch("/api/notifications/register-token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ token }),
+    });
   }
 
-  initNotifications();
-}, []); 
-
+  registerToken();
+}, []);
    
   //from the database => "2025-11-24"
   const todayStr = new Date().toISOString().slice(0, 10)

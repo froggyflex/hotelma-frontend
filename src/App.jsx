@@ -63,26 +63,6 @@ function AppLayout() {
         >
           Logout
         </button>
-
-      {/* <button
-        onClick={async () => {
-          const { getFcmToken } = await import("./firebaseMessaging");
-          const token =  'fzxbBwpeV-eQRI3w09OQAQ:APA91bFyp4kxmV3QtTeEOf7tm7BNkuBV7yYrKiPh5ue_UbObhAo5FanB_zgbcI7tt5c0JLQp-9GXZBYiCCEj63T4tk35lorxP-mOFEzKkWnT5TC27J_AjOA';//await getFcmToken();
-
-          console.log("FCMS TOKEN:", token);
-          alert("FCM token logged in console");
-
-          await fetch("/api/notifications/test", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ token }),
-            });
-
-        }}
-        className="px-4 py-2 bg-sky-600 text-white rounded"
-      >
-        Test Notifications
-      </button> */}
       </aside>
 
       <main className="flex-1 p-6 overflow-auto bg-slate-50">
