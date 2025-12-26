@@ -97,7 +97,7 @@ export default function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
   
-  const { tokenA } = useAuth();
+  const authToken = localStorage.getItem("user");
   useEffect(() => {
     axios.get(URL).then((res) => setBookings(res.data))
     axios.get(URLR).then((res) => setRooms(res.data))
@@ -114,7 +114,7 @@ useEffect(() => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${tokenA}`,
+        Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify({ token }),
     });
