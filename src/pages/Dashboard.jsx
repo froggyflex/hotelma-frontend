@@ -97,14 +97,14 @@ export default function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
   
-  const authToken = localStorage.getItem("user");
+  
   useEffect(() => {
     axios.get(URL).then((res) => setBookings(res.data))
     axios.get(URLR).then((res) => setRooms(res.data))
   }, [])
 
  
-
+const authToken = localStorage.getItem("user");
 useEffect(() => {
   async function registerToken() {
     const token = await getFcmToken();
