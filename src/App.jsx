@@ -1,6 +1,6 @@
-import React from "react";
+ 
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
-
+import React, { useEffect, useState } from 'react'
 import Dashboard from "./pages/Dashboard";
 import Bookings from "./pages/Bookings";
 import Rooms from "./pages/Rooms";
