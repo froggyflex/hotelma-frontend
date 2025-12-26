@@ -92,9 +92,9 @@ function parseNotes(text) {
 const norm = (d) => new Date(d).toISOString().slice(0, 10);
 
 
+ const { getFcmToken } = await import("../firebaseMessaging");
 
-
-export default async function Dashboard() {
+export default function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
 
@@ -103,7 +103,7 @@ export default async function Dashboard() {
     axios.get(URLR).then((res) => setRooms(res.data))
   }, [])
 
-  const { getFcmToken } = await import("../firebaseMessaging");
+ 
   useEffect(() => {
     getFcmToken().then(token => {
       if (token) {
