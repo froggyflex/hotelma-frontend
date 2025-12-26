@@ -103,7 +103,7 @@ export default async function Dashboard() {
     axios.get(URLR).then((res) => setRooms(res.data))
   }, [])
 
-  const { getFcmToken } = await import("./firebaseMessaging");
+  const { getFcmToken } = await import("../firebaseMessaging");
   useEffect(() => {
     getFcmToken().then(token => {
       if (token) {
