@@ -205,13 +205,13 @@ const notesSummary = {
 
 
 return (
-  <div className="w-full flex gap-6 px-6 py-4">
+  <div className="w-full flex flex-col lg:flex-row gap-4 lg:gap-6 px-3 sm:px-4 lg:px-6 py-4">
 
     {/* ---------------------------------- */}
     {/* LEFT SIDEBAR (DATE + OCCUPANCY)    */}
     {/* ---------------------------------- */}
 
-    <div className="w-64 flex flex-col gap-6">
+    <div className="w-full lg:w-64 flex flex-col gap-4 lg:gap-6">
 
       {/* DATE CARD */}
       <div className="bg-white rounded-xl shadow-sm p-6 text-center border border-gray-400">
@@ -231,7 +231,7 @@ return (
         <div className="font-semibold text-gray-700 mb-3">Occupancy</div>
 
         {/* DONUT (placeholder – plug your chart here) */}
-        <div className="w-28 h-28 rounded-full border-[10px] border-blue-500 border-t-gray-300 flex items-center justify-center ">
+        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-[8px] sm:border-[10px] border-blue-500 border-t-gray-300 flex items-center justify-center ">
           <span className="text-xl font-semibold text-blue-600">
             {Math.round((occupiedToday.length / rooms.length) * 100)}%
           </span>
@@ -280,7 +280,7 @@ return (
             💶 Revenue Overview
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
             {/* Monthly */}
             <div className="bg-white rounded-xl p-5 border border-blue-400">
               <div className="text-sm text-blue-700 font-medium">
@@ -320,7 +320,7 @@ return (
         </div>
        
       {/* ACTIVITY TABS */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-400 p-4 flex gap-6">
+      <div className="bg-white rounded-xl shadow-md border border-gray-400 p-4 flex flex-wrap gap-4 justify-between sm:justify-start">
 
         <div className="cursor-pointer flex flex-col items-center ">
           <span className="text-lg font-semibold text-blue-600">{arrivalsToday.length}</span>
@@ -363,10 +363,10 @@ return (
               const notes = parseNotes(b.notes);
 
               return (
-                <div key={b.id} className="p-4 flex gap-4">
+                <div key={b.id} className="p-4 flex flex-col sm:flex-row gap-3 sm:gap-4">
                   {/* LEFT: guest + stay + notes */}
                   <div className="flex-1">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                       <div>
                         <div className="font-medium text-gray-800">{b.guestName}</div>
                         <div className="text-xs text-gray-500">
@@ -381,7 +381,7 @@ return (
 
                     {/* REMARKS / NOTES */}
                     {notes.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                      <ul className="mt-2 space-y-1 text-xs sm:text-xs text-gray-700 leading-snug">
                         {notes.map((n, i) => (
                           <li key={i} className="flex items-start gap-2">
                             {n.icon && <span className="mt-[1px]">{n.icon}</span>}
@@ -424,10 +424,10 @@ return (
               const notes = parseNotes(b.notes);
 
               return (
-                <div key={b.id} className="p-4 flex gap-4">
+                <div key={b.id} className="p-4 flex flex-col sm:flex-row gap-3 sm:gap-4">
                   {/* LEFT: guest + stay + notes */}
                   <div className="flex-1">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                       <div>
                         <div className="font-medium text-gray-800">{b.guestName}</div>
                         <div className="text-xs text-gray-500">
@@ -442,7 +442,7 @@ return (
 
                     {/* REMARKS / NOTES */}
                     {notes.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                      <ul className="mt-2 space-y-1 text-xs sm:text-xs text-gray-700 leading-snug">
                         {notes.map((n, i) => (
                           <li key={i} className="flex items-start gap-2">
                             {n.icon && <span className="mt-[1px]">{n.icon}</span>}
