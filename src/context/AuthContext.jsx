@@ -30,8 +30,14 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {children}
+    <AuthContext.Provider value={{ user, login, logout }}>
+      {loading ? (
+        <div className="min-h-screen flex items-center justify-center text-sky-700">
+          Loading…
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }

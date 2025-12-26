@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import bg from "../context/b3.jpg";
+import { requestNotificationPermission } from "../utils/notifications";
+// import { getFcmToken } from "../firebase";
+
 
     export default function Login() {
     const { login } = useAuth();
@@ -21,14 +24,30 @@ import bg from "../context/b3.jpg";
     setError(null);
 
     const res = await login({ email, password });
+    try{
+        if (res.success) {
+          navigate(from, { replace: true });
+           
+          const permissionGranted = await requestNotificationPermission();
 
-    if (res.success) {
-      navigate(from, { replace: true });
-    } else {
-      setError(res.message || "Invalid credentials");
-    }
+          if (permissionGranted) {
 
-    setLoading(false);
+            if ("serviceWorker" in navigator) {
+              navigator.serviceWorker.register("/firebase-messaging-sw.js");
+            } 
+ 
+            
+          }
+          
+        } else {
+          setError(res.message || "Invalid credentials");
+        }
+
+        setLoading(false);
+      }
+      catch(Exception){
+          console.log(Exception);
+      }
   };
 
   return (
@@ -101,7 +120,7 @@ import bg from "../context/b3.jpg";
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+                Username
               </label>
               <input
                 type="text"
