@@ -33,3 +33,6 @@ export const createKitchenTable = (data) =>
   API.post("/api/kitchen/tables", data);
 export const updateKitchenTable = (id, data) =>
   API.put(`/api/kitchen/tables/${id}`, data);
+
+export const createKitchenProductsBulk = (payload) =>
+  API.post("/api/kitchen/products/bulk", payload);

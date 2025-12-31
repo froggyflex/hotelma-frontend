@@ -34,16 +34,17 @@ export default function KitchenAdminSidebar() {
           <NavLink to="/kitchen-admin/tables" className={linkClass}>
             Tables
           </NavLink>
-        </nav>
-
-        {/* FOOTER */}
-        <div className="border-t border-slate-200 p-3">
           <NavLink
             to="/hub"
             className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-100 transition"
           >
             ← Back to Hub
           </NavLink>
+        </nav>
+
+        {/* FOOTER */}
+        <div className="border-t border-slate-200 p-3">
+
         </div>
       </div>
     </aside>

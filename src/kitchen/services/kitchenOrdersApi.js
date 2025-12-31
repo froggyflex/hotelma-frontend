@@ -28,3 +28,21 @@ export const fetchActiveTables = async () => {
   const res = await API.get("/api/kitchen/tables");
   return res.data.filter((t) => t.active);
 };
+
+export const fetchOrdersByTable = async (tableId) => {
+  const res = await API.get(`/api/kitchen/orders?tableId=${tableId}`);
+  return res.data;
+};
+
+export const createKitchenOrder = async (payload) => {
+  const res = await API.post("/api/kitchen/orders", payload);
+  return res.data;
+};
+
+export const updateOrderPrintStatus = async (orderId, payload) => {
+  const res = await API.patch(
+    `/api/kitchen/orders/${orderId}/print-status`,
+    payload
+  );
+  return res.data;
+};
