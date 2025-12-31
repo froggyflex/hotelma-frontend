@@ -1,6 +1,6 @@
- 
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
-import React, { useEffect, useState } from 'react'
+import React, { useState } from "react";
+
 import Dashboard from "./pages/Dashboard";
 import Bookings from "./pages/Bookings";
 import Rooms from "./pages/Rooms";
@@ -11,19 +11,27 @@ import CreateInvoice from "./pages/CreateInvoice";
 import SettingsPage from "./pages/Settings";
 import Login from "./pages/Login";
 
+import HubPage from "./hub/HubPage";
+
+// Kitchen Admin
+import KitchenAdminLayout from "./kitchenAdmin/layout/KitchenAdminLayout";
+import ProductsPage from "./kitchenAdmin/pages/ProductsPage";
+import NotesPage from "./kitchenAdmin/pages/NotesPage";
+import TablesPage from "./kitchenAdmin/pages/TablesPage";
+import KitchenLayout from "./kitchen/layout/KitchenLayout";
+import OrderPage from "./kitchen/pages/OrderPage";
+
+
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-
 
 const navLinkClass = ({ isActive }) =>
   "px-3 py-2 rounded-md text-sm font-medium " +
   (isActive ? "bg-white text-blue-700" : "hover:bg-blue-500/30");
 
 /* ========================= */
-/* APP LAYOUT (AUTHED ONLY)  */
+/* APP LAYOUT (PMS)          */
 /* ========================= */
-
-
 
 function AppLayout() {
   const { logout } = useAuth();
@@ -31,7 +39,6 @@ function AppLayout() {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      
       {/* MOBILE OVERLAY */}
       {sidebarOpen && (
         <div
@@ -76,6 +83,8 @@ function AppLayout() {
           <NavLink to="/settings" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
             Settings
           </NavLink>
+
+
         </nav>
 
         <button
@@ -84,11 +93,15 @@ function AppLayout() {
         >
           Logout
         </button>
+            <br></br> <br></br>
+        {/* HUB LINK */}
+          <NavLink to="/hub" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
+            Switch App
+          </NavLink>
       </aside>
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        
         {/* MOBILE HEADER */}
         <header className="lg:hidden flex items-center gap-3 bg-white border-b px-4 py-3">
           <button
@@ -112,7 +125,6 @@ function AppLayout() {
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
-
       </div>
     </div>
   );
@@ -121,6 +133,7 @@ function AppLayout() {
 /* ========================= */
 /* ROOT APP                  */
 /* ========================= */
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -131,7 +144,21 @@ export default function App() {
 
           {/* PROTECTED */}
           <Route element={<ProtectedRoute />}>
+            {/* HUB */}
+            <Route path="/hub" element={<HubPage />} />
+            <Route path="/kitchen" element={<KitchenLayout />}>
+              <Route index element={<OrderPage />} />
+            </Route>
+            {/* PMS */}
             <Route path="/*" element={<AppLayout />} />
+
+            {/* KITCHEN ADMIN */}
+            <Route path="/kitchen-admin" element={<KitchenAdminLayout />}>
+              <Route index element={<ProductsPage />} />
+              <Route path="products" element={<ProductsPage />} />
+              <Route path="notes" element={<NotesPage />} />
+              <Route path="tables" element={<TablesPage />} />
+            </Route>
           </Route>
         </Routes>
       </AuthProvider>
