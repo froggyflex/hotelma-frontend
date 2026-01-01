@@ -14,7 +14,7 @@ import {
 import { buildThermalPrint } from "../utils/buildThermalPrint";
 import TableMap from "../components/TableMap";
 import axios from "axios";
-
+import { getKitchenNotes } from "../../services/kitchenApi";
 
 const CATEGORY_COLOR_GROUPS = [
   {
@@ -95,11 +95,41 @@ export default function OrderPage() {
   );
 
   useEffect(() => {
+    getKitchenNotes().then(res => {
+      setNotes(res.data.filter(n => n.active));
+    });
+  }, []);
+
+  useEffect(() => {
     axios.get(`${import.meta.env.VITE_API_URL}/api/table-map`)
       .then(res => setTableMap(res.data))
       .catch(() => setTableMap(null));
   }, []);
 
+
+  function getNotesForCategory(category) {
+    if (!category) return [];
+
+    return notes.filter(
+      n => n.active && n.category === category
+    );
+  }
+  function getNotesForProduct(product) {
+    if (!product) return [];
+
+    const allowedIds = new Set(
+      (product.noteTemplateIds || []).map(n =>
+        typeof n === "string" ? n : n._id
+      )
+    );
+
+    return notes.filter(
+      n =>
+        n.active &&
+        n.category === product.category &&
+        allowedIds.has(n._id)
+    );
+  }
   function openTable(t) {
     // Immediate open behavior
     setTable(t);
@@ -538,9 +568,9 @@ function getCategoryStyle(category) {
         open={!!activeItem}
         item={activeItem}
         noteTemplates={
-          products
-            .find(p => p._id === activeItem?.productId)
-            ?.noteTemplateIds?.map(n => n.label) || []
+          getNotesForCategory(
+            products.find(p => p._id === activeItem?.productId)?.category
+          )
         }
         allowCustomNote={activeItem?.allowCustomNote}
         onSkip={() => setActiveItem(null)}
@@ -569,6 +599,8 @@ function getCategoryStyle(category) {
           setActiveItem(null);
         }}
       />
+
+
 
       {/* ORDER REVIEW */}
       <OrderSheet

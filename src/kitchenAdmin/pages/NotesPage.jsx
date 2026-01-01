@@ -12,6 +12,7 @@ export default function NotesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [label, setLabel] = useState("");
+  const [category, setCategory] = useState("");
 
   async function load() {
     setLoading(true);
@@ -24,30 +25,34 @@ export default function NotesPage() {
     load();
   }, []);
 
-  function openCreate() {
-    setEditing(null);
-    setLabel("");
-    setModalOpen(true);
-  }
-
-  function openEdit(note) {
-    setEditing(note);
-    setLabel(note.label);
-    setModalOpen(true);
-  }
-
-  async function save() {
-    if (!label.trim()) return;
-
-    if (editing) {
-      await updateKitchenNote(editing._id, { label });
-    } else {
-      await createKitchenNote({ label });
+      function openCreate() {
+      setEditing(null);
+      setLabel("");
+      setCategory("");
+      setModalOpen(true);
     }
 
-    setModalOpen(false);
-    load();
-  }
+    function openEdit(note) {
+      setEditing(note);
+      setLabel(note.label);
+      setCategory(note.category || "");
+      setModalOpen(true);
+    }
+
+      async function save() {
+        if (!label.trim() || !category.trim()) return;
+
+        const payload = { label, category };
+
+        if (editing) {
+          await updateKitchenNote(editing._id, payload);
+        } else {
+          await createKitchenNote(payload);
+        }
+
+        setModalOpen(false);
+        load();
+      }
 
   async function toggleActive(note) {
     await updateKitchenNote(note._id, { active: !note.active });
@@ -79,6 +84,7 @@ export default function NotesPage() {
           <thead className="bg-slate-50 text-slate-600">
             <tr>
               <th className="px-4 py-3 text-left">Label</th>
+              <th className="px-4 py-3 text-left">Category</th>
               <th className="px-4 py-3 text-left">Active</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -107,6 +113,7 @@ export default function NotesPage() {
                 className="border-t border-slate-200 hover:bg-slate-50"
               >
                 <td className="px-4 py-3 font-medium">{n.label}</td>
+                <td className="px-4 py-3 text-slate-600">{n.category}</td>
                 <td className="px-4 py-3">
                   <button
                     onClick={() => toggleActive(n)}
@@ -142,6 +149,17 @@ export default function NotesPage() {
               {editing ? "Edit note" : "New note"}
             </h3>
 
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">
+                Category
+              </label>
+              <input
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="e.g. Coffee"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium mb-1">
                 Label

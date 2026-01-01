@@ -15,31 +15,38 @@ export default function ModifierModal({
   useEffect(() => {
     if (item) {
       setQty(item.qty ?? 1);
-    }
-  }, [item]);
-
-  useEffect(() => {
-    if (open && item) {
-      setSelected(item.notes || []);
       setCustomNote(item.customNote || "");
+      setSelected(
+        item.customNote
+          ? item.customNote.split(" · ").filter(Boolean)
+          : []
+      );
     }
-  }, [open, item]);
+  }, [item, open]);
 
   if (!open || !item) return null;
 
   function toggle(label) {
-    setSelected((prev) =>
-      prev.includes(label)
-        ? prev.filter((l) => l !== label)
-        : [...prev, label]
-    );
+    setSelected((prev) => {
+      let next;
+
+      if (prev.includes(label)) {
+        next = prev.filter((l) => l !== label);
+      } else {
+        next = [...prev, label];
+      }
+
+      // 🔑 sync labels → customNote
+      setCustomNote(next.join(" · "));
+
+      return next;
+    });
   }
 
   function save() {
     onSave({
-      noteTemplates,
-      customNote,
       qty,
+      customNote,
     });
   }
 
@@ -69,7 +76,7 @@ export default function ModifierModal({
             </div>
           )}
 
-          {/* INGREDIENT TOGGLES */}
+          {/* NOTE LABELS */}
           {noteTemplates.map((n) => (
             <button
               key={n._id}
@@ -86,10 +93,10 @@ export default function ModifierModal({
             </button>
           ))}
 
-
+          {/* QTY */}
           <div className="flex items-center justify-center gap-4 mb-4">
             <button
-              onClick={() => setQty(q => Math.max(1, q - 1))}
+              onClick={() => setQty((q) => Math.max(1, q - 1))}
               className="w-10 h-10 rounded-full border"
             >
               −
@@ -98,14 +105,14 @@ export default function ModifierModal({
             <span className="text-lg font-semibold">{qty}</span>
 
             <button
-              onClick={() => setQty(q => q + 1)}
+              onClick={() => setQty((q) => q + 1)}
               className="w-10 h-10 rounded-full border"
             >
               +
             </button>
           </div>
 
-          {/* CUSTOM NOTE */}
+          {/* CUSTOM NOTE (editable, stays in sync) */}
           {allowCustomNote && (
             <div>
               <label className="block text-xs text-slate-500 mb-1">
@@ -114,7 +121,14 @@ export default function ModifierModal({
               <textarea
                 rows={2}
                 value={customNote}
-                onChange={(e) => setCustomNote(e.target.value)}
+                onChange={(e) => {
+                  setCustomNote(e.target.value);
+                  setSelected(
+                    e.target.value
+                      .split(" · ")
+                      .filter(Boolean)
+                  );
+                }}
                 placeholder="e.g. No salt, well done"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
