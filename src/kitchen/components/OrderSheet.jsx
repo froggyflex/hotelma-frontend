@@ -5,6 +5,7 @@ import {
   updateOrderPrintStatus,
 } from "../services/kitchenOrdersApi";
 import { buildThermalPrint } from "../utils/buildThermalPrint";
+import { useEffect } from "react";
 
 export default function OrderSheet({
   open,
@@ -17,6 +18,18 @@ export default function OrderSheet({
 }) {
   const [editingItem, setEditingItem] = useState(null);
 
+
+  useEffect(() => {
+  if (open) {
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = "";
+  }
+
+  return () => {
+    document.body.style.overflow = "";
+  };
+}, [open]);
   if (!open) return null;
 
   function removeItem(id) {
@@ -88,7 +101,8 @@ async function sendOrder() {
       />
 
       {/* sheet */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-xl max-h-[85vh] overflow-auto">
+      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-xl 
+                h-[50vh] max-h-[90vh] overflow-auto">
         {/* HEADER */}
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div>

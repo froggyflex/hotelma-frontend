@@ -13,6 +13,54 @@ import {
 } from "../services/kitchenOrdersApi";
 import { buildThermalPrint } from "../utils/buildThermalPrint";
 
+const CATEGORY_COLOR_GROUPS = [
+  {
+    match: ["drink", "ouzo", "wine", "beer", "coffee", "juice", "slush"],
+    style: {
+      bg: "bg-blue-50",
+      border: "border-blue-200",
+      text: "text-blue-700",
+    },
+  },
+  {
+    match: ["italian", "greek", "burger", "pizza"],
+    style: {
+      bg: "bg-emerald-50",
+      border: "border-emerald-200",
+      text: "text-emerald-700",
+    },
+  },
+  {
+    match: ["dessert", "sweet", "ice"],
+    style: {
+      bg: "bg-rose-50",
+      border: "border-rose-200",
+      text: "text-rose-700",
+    },
+  },
+  {
+    match: ["starters", "salads", "menu"],
+    style: {
+      bg: "bg-amber-50",
+      border: "border-amber-200",
+      text: "text-amber-700",
+    },
+  },
+    {
+    match: ["breakfast", "side", "omelettes", "toast", "sandwiches"],
+    style: {
+      bg: "bg-teal-50",
+      border: "border-teal-200",
+      text: "text-teal-700",
+    },
+  },
+];
+
+const DEFAULT_CATEGORY_STYLE = {
+  bg: "bg-slate-50",
+  border: "border-slate-200",
+  text: "text-slate-700",
+};
 
 export default function OrderPage() {
   const [loading, setLoading] = useState(true);
@@ -40,6 +88,7 @@ export default function OrderPage() {
   const categories = Array.from(
     new Set(products.map(p => p.category || "Other"))
   );
+
 
     
   async function handleReprint(order) {
@@ -81,6 +130,7 @@ export default function OrderPage() {
   useEffect(() => {
     if (!activeCategory && categories.length > 0) {
       setActiveCategory(categories[0]);
+      
     }
   }, [categories]);
 
@@ -163,6 +213,24 @@ export default function OrderPage() {
       </span>
     );
   }
+
+  function normalizeCategory(cat) {
+    return cat?.trim().toLowerCase();
+  }
+function getCategoryStyle(category) {
+  if (!category) return DEFAULT_CATEGORY_STYLE;
+
+  const normalized = category.toLowerCase();
+
+  for (const group of CATEGORY_COLOR_GROUPS) {
+    if (group.match.some(word => normalized.includes(word))) {
+      return group.style;
+    }
+  }
+
+  return DEFAULT_CATEGORY_STYLE;
+}
+
   return (
     <div className="space-y-4 pb-24">
       {/* TABLE SELECTOR — ALWAYS VISIBLE */}
@@ -173,9 +241,13 @@ export default function OrderPage() {
 
         <select
           value={table?._id || ""}
-          onChange={(e) =>
-            setTable(tables.find(t => t._id === e.target.value) || null)
-          }
+          onChange={(e) => {
+          const selected = tables.find(t => t._id === e.target.value) || null;
+          setTable(selected);
+          setMode("new");
+          setStep("category");
+          setItems([]);
+        }}
           className="w-full rounded-xl border px-3 py-3 text-base"
         >
           <option value="">Select table…</option>
@@ -246,7 +318,7 @@ export default function OrderPage() {
                   {/* HEADER */}
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-slate-500">
-                      {new Date(order.createdAt).toLocaleTimeString()}
+                      {order.tableNote} - {new Date(order.createdAt).toLocaleTimeString()}
                     </div>
 
                     <OrderStatusBadge status={order.status} />
@@ -278,21 +350,46 @@ export default function OrderPage() {
 
           {/* NEW ORDER MODE */}
           {mode === "new" && step === "category" && (
-            <div className="grid grid-cols-3 gap-3">
-              {categories.map(cat => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              
+            {categories.map(cat => {
+               
+              const style = getCategoryStyle(cat);
+
+              return (
                 <button
                   key={cat}
                   onClick={() => {
                     setActiveCategory(cat);
                     setStep("products");
                   }}
-                  className="rounded-2xl border bg-slate-50 px-4 py-6"
+                  className={[
+                    "rounded-2xl px-4 py-6 border transition shadow-sm",
+                    "flex flex-col items-start gap-2",
+                    style.bg,
+                    style.border,
+                    "hover:brightness-[0.97]",
+                  ].join(" ")}
                 >
-                  <div className="font-semibold">{cat}</div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Category
+                  </div>
+
+                  <div className={`text-lg font-semibold ${style.text}`}>
+                    {cat}
+                  </div>
+
+                  <div className="text-xs text-slate-500">
+                    Tap to view items
+                  </div>
                 </button>
-              ))}
+              );
+            })}
+
             </div>
+          
           )}
+          
 
           {mode === "new" && step === "products" && (
             <>
