@@ -194,7 +194,7 @@ export default function TableMap({
                 y={pos.y}
                 size={
                   (effectiveLayout.tableSize ?? 110) *
-                  (isMobile ? 1.4 : 1)
+                  (isMobile ? 1.3 : 1)
                 }
                 label={`T${idx + 1}`}
                 selected={selectedTableId === t._id}
