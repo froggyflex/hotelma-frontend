@@ -10,6 +10,13 @@ export default function ModifierModal({
 }) {
   const [selected, setSelected] = useState([]);
   const [customNote, setCustomNote] = useState("");
+  const [qty, setQty] = useState(1);
+
+  useEffect(() => {
+    if (item) {
+      setQty(item.qty ?? 1);
+    }
+  }, [item]);
 
   useEffect(() => {
     if (open && item) {
@@ -30,8 +37,9 @@ export default function ModifierModal({
 
   function save() {
     onSave({
-      notes: selected,
+      noteTemplates,
       customNote,
+      qty,
     });
   }
 
@@ -77,6 +85,25 @@ export default function ModifierModal({
               {selected.includes(n.label) && "✓"}
             </button>
           ))}
+
+
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <button
+              onClick={() => setQty(q => Math.max(1, q - 1))}
+              className="w-10 h-10 rounded-full border"
+            >
+              −
+            </button>
+
+            <span className="text-lg font-semibold">{qty}</span>
+
+            <button
+              onClick={() => setQty(q => q + 1)}
+              className="w-10 h-10 rounded-full border"
+            >
+              +
+            </button>
+          </div>
 
           {/* CUSTOM NOTE */}
           {allowCustomNote && (

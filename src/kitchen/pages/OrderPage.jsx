@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   fetchActiveProducts,
   fetchActiveTables,
@@ -12,6 +12,9 @@ import {
   updateOrderPrintStatus,
 } from "../services/kitchenOrdersApi";
 import { buildThermalPrint } from "../utils/buildThermalPrint";
+import TableMap from "../components/TableMap";
+import axios from "axios";
+
 
 const CATEGORY_COLOR_GROUPS = [
   {
@@ -84,49 +87,34 @@ export default function OrderPage() {
 
   const [mode, setMode] = useState("new"); // "new" | "history"
   const [pastOrders, setPastOrders] = useState([]);
+  const [tableMap, setTableMap] = useState(null)
+
 
   const categories = Array.from(
     new Set(products.map(p => p.category || "Other"))
   );
 
+  useEffect(() => {
+    axios.get(`${import.meta.env.VITE_API_URL}/api/table-map`)
+      .then(res => setTableMap(res.data))
+      .catch(() => setTableMap(null));
+  }, []);
 
-    
-  async function handleReprint(order) {
-  try {
-    const printPayload = buildThermalPrint(
-      {
-        table: order.table,
-        tableNote: order.tableNote,
-        items: order.items,
-        createdAt: order.createdAt,
-      },
-      products
-    );
+  function openTable(t) {
+    // Immediate open behavior
+    setTable(t);
+    setMode("new");
+    setStep("category");
+    setActiveCategory(""); // will auto-set from effect
+    setTableNote("");
+    setItems([]);
+    setReviewOpen(false);
+    setActiveItem(null);
 
-    // TEMP: replace later with bluetooth print
-    console.log("REPRINT PAYLOAD:\n", printPayload);
-
-    // mark as printed (temporary success)
-    await updateOrderPrintStatus(order._id, { success: true });
-
-    // refresh past orders
-    fetchOrdersByTable(table._id).then(setPastOrders);
-
-    alert("Reprint successful");
-  } catch (err) {
-    console.error(err);
-
-    await updateOrderPrintStatus(order._id, {
-      success: false,
-      error: err.message,
-    });
-
-    alert("Reprint failed");
-  }
-}
-
-
-
+    // optional: scroll to top so user sees the order UI immediately
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } 
+ 
   useEffect(() => {
     if (!activeCategory && categories.length > 0) {
       setActiveCategory(categories[0]);
@@ -161,6 +149,79 @@ export default function OrderPage() {
     fetchOrdersByTable(table._id).then(setPastOrders);
   }, [table]);
 
+  const waiterTables = useMemo(() => {
+  if (!tableMap?.tables?.length) return [];
+  return tables.map(t => ({
+    ...t,
+    _pos: tableMap.tables.find(
+      p => String(p.tableId) === String(t._id)
+    ),
+  }));
+}, [tables, tableMap]);
+
+  async function handleReprint(order) {
+    try {
+      const printPayload = buildThermalPrint(
+        {
+          table: order.table,
+          tableNote: order.tableNote,
+          items: order.items,
+          createdAt: order.createdAt,
+        },
+        products
+      );
+
+      // TEMP: replace later with bluetooth print
+      console.log("REPRINT PAYLOAD:\n", printPayload);
+
+      // mark as printed (temporary success)
+      await updateOrderPrintStatus(order._id, { success: true });
+
+      // refresh past orders
+      fetchOrdersByTable(table._id).then(setPastOrders);
+
+      alert("Reprint successful");
+    } catch (err) {
+      console.error(err);
+
+      await updateOrderPrintStatus(order._id, {
+        success: false,
+        error: err.message,
+      });
+
+      alert("Reprint failed");
+    }
+  }
+
+
+  function itemSignature(item) {
+    return JSON.stringify({
+      productId: item.productId,
+      notes: [...(item.notes || [])].sort(),
+      customNote: item.customNote || "",
+    });
+  }
+
+  function addOrMergeItem(newItem) {
+    setItems(prev => {
+      const newSig = itemSignature(newItem);
+
+      const existing = prev.find(
+        i => itemSignature(i) === newSig
+      );
+
+      if (existing) {
+        return prev.map(i =>
+          itemSignature(i) === newSig
+            ? { ...i, qty: i.qty + newItem.qty }
+            : i
+        );
+      }
+
+      return [...prev, newItem];
+    });
+  }
+
   function addItem(product) {
     if (!table) return;
 
@@ -171,6 +232,7 @@ export default function OrderPage() {
       notes: [],
       customNote: "",
       allowCustomNote: product.allowCustomNote,
+      qty:1
     };
 
     setItems(prev => [...prev, newItem]);
@@ -179,7 +241,11 @@ export default function OrderPage() {
       (product.noteTemplateIds && product.noteTemplateIds.length > 0) ||
       product.allowCustomNote;
 
-    if (hasModifiers) setActiveItem(newItem);
+    if (hasModifiers) {
+      setActiveItem(newItem); // wait for modal
+    } else {
+      addOrMergeItem(newItem);
+    }
   }
 
   if (loading) {
@@ -231,33 +297,44 @@ function getCategoryStyle(category) {
   return DEFAULT_CATEGORY_STYLE;
 }
 
+
   return (
     <div className="space-y-4 pb-24">
-      {/* TABLE SELECTOR — ALWAYS VISIBLE */}
-      <div className="rounded-2xl border bg-white p-4 shadow-sm space-y-3">
-        <label className="block text-xs font-medium text-slate-500">
-          TABLE
-        </label>
-
-        <select
-          value={table?._id || ""}
-          onChange={(e) => {
-          const selected = tables.find(t => t._id === e.target.value) || null;
-          setTable(selected);
-          setMode("new");
-          setStep("category");
-          setItems([]);
+      {/* TABLE MAP (PRIMARY) */}
+      <TableMap
+        tables={waiterTables}
+        layout={{
+          width: tableMap?.width ?? 1600,
+          height: tableMap?.height ?? 900,
+          doors: tableMap?.doors ?? [],
         }}
-          className="w-full rounded-xl border px-3 py-3 text-base"
-        >
-          <option value="">Select table…</option>
-          {tables.map(t => (
-            <option key={t._id} value={t._id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-      </div>
+        selectedTableId={table?._id}
+        onSelect={openTable}
+      />
+      {/* FALLBACK SELECTOR (optional) */}
+      <details className="rounded-2xl border bg-white p-4 shadow-sm">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+          Table selector (fallback)
+        </summary>
+
+        <div className="mt-3 space-y-3">
+          <label className="block text-xs font-medium text-slate-500">TABLE</label>
+          <select
+            value={table?._id || ""}
+            onChange={(e) => {
+              const selected = tables.find(t => t._id === e.target.value) || null;
+              if (selected) openTable(selected);
+            }}
+            className="w-full rounded-xl border px-3 py-3 text-base"
+          >
+            <option value="">Select table…</option>
+            {tables.map(t => (
+              <option key={t._id} value={t._id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+      </details>
+
 
       {/* EVERYTHING BELOW REQUIRES A TABLE */}
       {!table && (
@@ -328,7 +405,10 @@ function getCategoryStyle(category) {
                   <div className="space-y-1">
                     {order.items.map((item, idx) => (
                       <div key={idx} className="text-sm">
-                        • {item.name}
+                       
+                        • {item.qty} × {item.name}  
+                          
+                        {item.customNote && (" - "+[item.customNote])}
                       </div>
                     ))}
                   </div>
@@ -461,11 +541,27 @@ function getCategoryStyle(category) {
         allowCustomNote={activeItem?.allowCustomNote}
         onSkip={() => setActiveItem(null)}
         onSave={(patch) => {
-          setItems(prev =>
-            prev.map(i =>
-              i.id === activeItem.id ? { ...i, ...patch } : i
-            )
-          );
+          setItems(prev => {
+            const filtered = prev.filter(i => i.id !== activeItem.id);
+            const completedItem = {
+              ...activeItem,
+              ...patch,
+            };
+
+            const sig = itemSignature(completedItem);
+            const existing = filtered.find(i => itemSignature(i) === sig);
+
+            if (existing) {
+              return filtered.map(i =>
+                itemSignature(i) === sig
+                  ? { ...i, qty: i.qty + completedItem.qty }
+                  : i
+              );
+            }
+
+            return [...filtered, completedItem];
+          });
+
           setActiveItem(null);
         }}
       />

@@ -30,15 +30,9 @@ export function buildThermalPrint({ table, tableNote, items, createdAt }, produc
     output.push(category);
 
     categoryItems.forEach(item => {
-      output.push(`- ${item.name}`);
-
-      item.notes?.forEach(note => {
-        output.push(`  - ${note}`);
-      });
-
-      if (item.customNote) {
-        output.push(`  * ${item.customNote}`);
-      }
+      output.push(`${item.qty}x ${item.name}`);
+      item.notes?.forEach(n => output.push(`  - ${n}`));
+      if (item.customNote) output.push(`  * ${item.customNote}`);
     });
 
     output.push("");

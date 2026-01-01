@@ -1,4 +1,6 @@
 import { NavLink } from "react-router-dom";
+ 
+
 
 const linkClass = ({ isActive }) =>
   [
@@ -34,6 +36,17 @@ export default function KitchenAdminSidebar() {
           <NavLink to="/kitchen-admin/tables" className={linkClass}>
             Tables
           </NavLink>
+          <NavLink
+              to="/kitchen-admin/table-map"
+              className={({ isActive }) =>
+                `flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                  isActive ? "bg-slate-200 font-medium" : "hover:bg-slate-100"
+                }`
+              }
+            >
+               
+              Table Map
+        </NavLink>
           <NavLink
             to="/hub"
             className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-100 transition"

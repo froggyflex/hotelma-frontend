@@ -20,7 +20,7 @@ import NotesPage from "./kitchenAdmin/pages/NotesPage";
 import TablesPage from "./kitchenAdmin/pages/TablesPage";
 import KitchenLayout from "./kitchen/layout/KitchenLayout";
 import OrderPage from "./kitchen/pages/OrderPage";
-
+import AdminTableMapEditor from "./kitchenAdmin/pages/AdminTableMapEditor";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -158,6 +158,7 @@ export default function App() {
               <Route path="products" element={<ProductsPage />} />
               <Route path="notes" element={<NotesPage />} />
               <Route path="tables" element={<TablesPage />} />
+              <Route path="/kitchen-admin/table-map" element={<AdminTableMapEditor />} />
             </Route>
           </Route>
         </Routes>
