@@ -299,18 +299,10 @@ function getCategoryStyle(category) {
 
 
   return (
+    
+    
     <div className="space-y-4 pb-24">
-      {/* TABLE MAP (PRIMARY) */}
-      <TableMap
-        tables={waiterTables}
-        layout={{
-          width: tableMap?.width ?? 1600,
-          height: tableMap?.height ?? 900,
-          doors: tableMap?.doors ?? [],
-        }}
-        selectedTableId={table?._id}
-        onSelect={openTable}
-      />
+
       {/* FALLBACK SELECTOR (optional) */}
       <details className="rounded-2xl border bg-white p-4 shadow-sm">
         <summary className="cursor-pointer text-sm font-semibold text-slate-700">
@@ -335,7 +327,19 @@ function getCategoryStyle(category) {
         </div>
       </details>
 
-
+      {/* TABLE MAP (PRIMARY) */}
+      <TableMap
+        tables={waiterTables}
+        layout={{
+          width: tableMap?.width ?? 1600,
+          height: tableMap?.height ?? 900,
+          tableSize:tableMap?.tableSize ?? 110,
+          doors: tableMap?.doors ?? [],
+        }}
+        selectedTableId={table?._id}
+        onSelect={openTable}
+      />
+ 
       {/* EVERYTHING BELOW REQUIRES A TABLE */}
       {!table && (
         <div className="text-center text-slate-400 py-10">

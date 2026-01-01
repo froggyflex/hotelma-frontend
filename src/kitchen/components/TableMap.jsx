@@ -11,10 +11,10 @@ import React, { useMemo } from "react";
 const DEFAULT_LAYOUT = {
   width: 1000,
   height: 600,
-  tableSize: 80,
+  tableSize: 110,
   doors: [],
 };
-
+const isMobile = window.innerWidth < 640; // Tailwind sm breakpoint
 // ---------- DOOR ----------
 function DoorMark({ x, y, orientation }) {
   const len = 60;
@@ -36,6 +36,41 @@ function DoorMark({ x, y, orientation }) {
     </g>
   );
 }
+
+function Grid({ width, height, size }) {
+  const lines = [];
+
+  for (let x = 0; x <= width; x += size) {
+    lines.push(
+      <line
+        key={`v-${x}`}
+        x1={x}
+        y1={0}
+        x2={x}
+        y2={height}
+        stroke="#E5E7EB"
+        strokeWidth="1"
+      />
+    );
+  }
+
+  for (let y = 0; y <= height; y += size) {
+    lines.push(
+      <line
+        key={`h-${y}`}
+        x1={0}
+        y1={y}
+        x2={width}
+        y2={y}
+        stroke="#E5E7EB"
+        strokeWidth="1"
+      />
+    );
+  }
+
+  return <g>{lines}</g>;
+}
+
 
 // ---------- TABLE ----------
 function TableNode({
@@ -157,7 +192,10 @@ export default function TableMap({
                 key={t._id}
                 x={pos.x}
                 y={pos.y}
-                size={effectiveLayout.tableSize ?? 80}
+                size={
+                  (effectiveLayout.tableSize ?? 110) *
+                  (isMobile ? 1.4 : 1)
+                }
                 label={`T${idx + 1}`}
                 selected={selectedTableId === t._id}
                 admin={admin}

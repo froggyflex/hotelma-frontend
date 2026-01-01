@@ -8,8 +8,9 @@ export default function AdminTableMapEditor() {
   const [positions, setPositions] = useState([]);
   const [dragging, setDragging] = useState(null);
 
-  const MAP_WIDTH = 1500;
+  const MAP_WIDTH = 1600;
   const MAP_HEIGHT = 900;
+  const GRID_SIZE = 40; // try 40 or 50
 
   // Load tables
   useEffect(() => {
@@ -60,24 +61,30 @@ export default function AdminTableMapEditor() {
     return { x, y };
     }
 
-  function handleMouseMove(e) {
+    function snap(value) {
+    return Math.round(value / GRID_SIZE) * GRID_SIZE;
+    }
+
+    function handleMouseMove(e) {
     if (!dragging) return;
 
-   const { x, y } = getRelativeCoords(e);
+    const { x, y } = getRelativeCoords(e);
 
+    const snappedX = snap(x);
+    const snappedY = snap(y);
 
     setPositions(prev =>
-      prev.map(p =>
+        prev.map(p =>
         p.tableId === dragging
-          ? {
-              ...p,
-              x: Math.max(40, Math.min(MAP_WIDTH - 40, x)),
-              y: Math.max(40, Math.min(MAP_HEIGHT - 40, y)),
+            ? {
+                ...p,
+                x: Math.max(40, Math.min(MAP_WIDTH - 40, snappedX)),
+                y: Math.max(40, Math.min(MAP_HEIGHT - 40, snappedY)),
             }
-          : p
-      )
+            : p
+        )
     );
-  }
+    }
 
   function handleMouseUp() {
     setDragging(null);
@@ -124,6 +131,7 @@ const mergedTables = tables.map(t => ({
             layout={{
               width: MAP_WIDTH,
               height: MAP_HEIGHT,
+              tableSize:110,
               tables: positions,
             }}
             onDragStart={setDragging}
