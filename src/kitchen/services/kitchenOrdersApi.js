@@ -74,11 +74,24 @@ export async function markOrderPrinted(orderId) {
 }
 
 export async function markItemDelivered(itemId) {
-  await fetch(
+  const res = await fetch(
     `${import.meta.env.VITE_API_URL}/api/kitchen/orders/items/${itemId}/delivered`,
-    { method: "PATCH" }
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
   );
+
+  if (!res.ok) {
+    throw new Error("Failed to mark item as delivered");
+  }
+
+   
+  return res.json();
 }
+ 
 export async function closeOrder(orderId) {
   await fetch(
     `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/close`,
@@ -87,10 +100,31 @@ export async function closeOrder(orderId) {
 }
 
 export const appendItemsToOrder = async (orderId, items) => {
-   await fetch(
-    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/items${items}`,
-    { method: "POST" }
+  const res = await fetch(
+    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/items`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ items }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error("Failed to append items to order");
+  }
+
+  return res.json();
+};
+
+
+export const updateOrderName = async (orderId, orderName) => {
+    await fetch(
+    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/name${ orderName }`,
+    { method: "PATCH" }
   );
 };
+
 
 

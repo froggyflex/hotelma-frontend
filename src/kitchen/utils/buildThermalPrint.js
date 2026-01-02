@@ -1,4 +1,7 @@
-export function buildThermalPrint({ table, tableNote, items, createdAt }, products) {
+export function buildThermalPrint(
+  { table, orderName, tableNote = null, items = [], createdAt },
+  products = []
+) {
   const line = "--------------------------------";
 
   const time = new Date(createdAt || Date.now()).toLocaleTimeString([], {
@@ -6,10 +9,15 @@ export function buildThermalPrint({ table, tableNote, items, createdAt }, produc
     minute: "2-digit",
   });
 
-  // Group items by category
+  // 🔹 Group items by CATEGORY (from products)
   const grouped = items.reduce((acc, item) => {
     const product = products.find(p => p._id === item.productId);
-    const category = (product?.category || "Other").toUpperCase();
+
+    const category = (
+      product?.category ||
+      item.category ||        // fallback if stored on item
+      "Other"
+    ).toUpperCase();
 
     if (!acc[category]) acc[category] = [];
     acc[category].push(item);
@@ -18,21 +26,37 @@ export function buildThermalPrint({ table, tableNote, items, createdAt }, produc
   }, {});
 
   let output = [];
- //table.name
+
   output.push(line);
-  output.push(`TABLE: ${tableNote}`);
-  if (tableNote) output.push(`NOTE:---`);
+
+  // ✅ REAL TABLE NAME
+  output.push(`TABLE: ${table?.name || "-"}`);
+
+  // ✅ TABLE NICKNAME / ORDER NAME
+  if (orderName) {
+    output.push(`NOTE: ${orderName}`);
+  } else if (tableNote) {
+    output.push(`NOTE: ${tableNote}`);
+  }
+
   output.push(`TIME: ${time}`);
   output.push(line);
   output.push("");
 
+  // 🔹 PRINT PER CATEGORY
   for (const [category, categoryItems] of Object.entries(grouped)) {
     output.push(category);
 
     categoryItems.forEach(item => {
       output.push(`${item.qty}x ${item.name}`);
-      item.notes?.forEach(n => output.push(`  - ${n}`));
-      if (item.customNote) output.push(`  * ${item.customNote}`);
+
+      item.notes?.forEach(n => {
+        output.push(`  - ${n}`);
+      });
+
+      if (item.customNote) {
+        output.push(`  * ${item.customNote}`);
+      }
     });
 
     output.push("");

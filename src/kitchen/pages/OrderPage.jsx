@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
 import {
@@ -9,7 +9,8 @@ import {
   appendItemsToOrder,
   markItemDelivered,
   closeOrder,
-  createKitchenOrder
+  createKitchenOrder,
+  updateOrderName, // ✅ was missing
 } from "../services/kitchenOrdersApi";
 
 import ModifierModal from "../components/ModifierModal";
@@ -20,9 +21,24 @@ import { buildThermalPrint } from "../utils/buildThermalPrint";
 /* ---------------- CATEGORY STYLES ---------------- */
 
 const CATEGORY_COLOR_GROUPS = [
-  { match: ["drink", "wine", "beer", "coffee", "juice"], bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700" },
-  { match: ["food", "pizza", "burger", "pasta"], bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700" },
-  { match: ["dessert", "sweet"], bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700" },
+  // {
+  //   match: ["drink", "wine", "beer", "coffee", "juice"],
+  //   bg: "bg-blue-50",
+  //   border: "border-blue-200",
+  //   text: "text-blue-700",
+  // },
+  // {
+  //   match: ["food", "pizza", "burger", "pasta"],
+  //   bg: "bg-emerald-50",
+  //   border: "border-emerald-200",
+  //   text: "text-emerald-700",
+  // },
+  // {
+  //   match: ["dessert", "sweet"],
+  //   bg: "bg-rose-50",
+  //   border: "border-rose-200",
+  //   text: "text-rose-700",
+  // },
 ];
 
 const DEFAULT_CATEGORY_STYLE = {
@@ -33,25 +49,36 @@ const DEFAULT_CATEGORY_STYLE = {
 
 function getCategoryStyle(cat) {
   if (!cat) return DEFAULT_CATEGORY_STYLE;
-  const c = cat.toLowerCase();
-  return CATEGORY_COLOR_GROUPS.find(g => g.match.some(m => c.includes(m))) ?? DEFAULT_CATEGORY_STYLE;
+  const c = String(cat).toLowerCase();
+  return (
+    CATEGORY_COLOR_GROUPS.find((g) => g.match.some((m) => c.includes(m))) ??
+    DEFAULT_CATEGORY_STYLE
+  );
+}
+
+function getDraftSignature(item) {
+  const notesKey = (item.notes || []).slice().sort().join("|");
+  const customKey = (item.customNote || "").trim();
+  return `${item.productId}__${notesKey}__${customKey}`;
 }
 
 /* ---------------- COMPONENT ---------------- */
 
 export default function OrderPage() {
-  /* ---------- STATE ---------- */
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [tables, setTables] = useState([]);
   const [products, setProducts] = useState([]);
-  const [notes, setNotes] = useState([]);
+  const [notes, setNotes] = useState([]); // kept (may be used later)
 
   const [table, setTable] = useState(null);
   const [activeOrder, setActiveOrder] = useState(null);
+
+  // "draft" = items not yet sent to kitchen
   const [draftItems, setDraftItems] = useState([]);
 
+  // item currently in modifier modal (either new or editing)
   const [activeItem, setActiveItem] = useState(null);
 
   const [step, setStep] = useState("category");
@@ -59,21 +86,24 @@ export default function OrderPage() {
 
   const [tableMap, setTableMap] = useState(null);
 
+  // nickname shown on ticket (order-level)
+  const [orderName, setOrderName] = useState("");
+
   /* ---------- MEMOS ---------- */
 
   const categories = useMemo(() => {
-    return Array.from(new Set(products.map(p => p.category || "Other")));
+    return Array.from(new Set(products.map((p) => p.category || "Other")));
   }, [products]);
 
   const waiterTables = useMemo(() => {
     if (!tableMap?.tables) return [];
-    return tables.map(t => ({
+    return tables.map((t) => ({
       ...t,
-      _pos: tableMap.tables.find(p => String(p.tableId) === String(t._id)),
+      _pos: tableMap.tables.find((p) => String(p.tableId) === String(t._id)),
     }));
   }, [tables, tableMap]);
 
-  /* ---------- EFFECTS ---------- */
+  /* ---------- LOAD BASE DATA ---------- */
 
   useEffect(() => {
     async function load() {
@@ -87,7 +117,8 @@ export default function OrderPage() {
         setTables(t);
         setProducts(p);
         setNotes(n);
-      } catch {
+      } catch (e) {
+        console.error(e);
         setError("Failed to load data");
       } finally {
         setLoading(false);
@@ -99,21 +130,44 @@ export default function OrderPage() {
   useEffect(() => {
     axios
       .get(`${import.meta.env.VITE_API_URL}/api/table-map`)
-      .then(res => setTableMap(res.data))
+      .then((res) => setTableMap(res.data))
       .catch(() => setTableMap(null));
   }, []);
+
+  /* ---------- LOAD ACTIVE ORDER WHEN TABLE CHANGES (SINGLE SOURCE OF TRUTH) ---------- */
 
   useEffect(() => {
     if (!table) return;
 
+    let cancelled = false;
+
     async function loadActive() {
-      const order = await fetchActiveOrderByTable(table._id);
-      setActiveOrder(order);
-      setDraftItems([]);
-      setStep("category");
+      try {
+        const order = await fetchActiveOrderByTable(table._id);
+        if (cancelled) return;
+
+        setActiveOrder(order || null);
+        setDraftItems([]);
+        setStep("category");
+
+        if (order) setOrderName(order.orderName || "");
+        else setOrderName("");
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          // keep UI usable even if fetch fails
+          setActiveOrder(null);
+          setDraftItems([]);
+          setStep("category");
+          setOrderName("");
+        }
+      }
     }
 
     loadActive();
+    return () => {
+      cancelled = true;
+    };
   }, [table]);
 
   /* ---------- EARLY RETURNS ---------- */
@@ -129,9 +183,7 @@ export default function OrderPage() {
   }
 
   function updateDraftItem(id, patch) {
-    setDraftItems(prev =>
-      prev.map(i => (i.id === id ? { ...i, ...patch } : i))
-    );
+    setDraftItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   }
 
   function editDraftItem(item) {
@@ -139,13 +191,7 @@ export default function OrderPage() {
   }
 
   function removeDraftItem(id) {
-    setDraftItems(prev => prev.filter(i => i.id !== id));
-  }
-  function getDraftSignature(item) {
-    const notesKey = (item.notes || []).slice().sort().join("|");
-    const customKey = item.customNote?.trim() || "";
-
-    return `${item.productId}__${notesKey}__${customKey}`;
+    setDraftItems((prev) => prev.filter((i) => i.id !== id));
   }
 
   function addItem(product) {
@@ -162,90 +208,133 @@ export default function OrderPage() {
     };
 
     const hasModifiers =
-      (product.noteTemplateIds?.length > 0) ||
-      product.allowCustomNote;
+      (product.noteTemplateIds?.length > 0) || product.allowCustomNote;
 
     if (hasModifiers) {
+      // open modal first
       setActiveItem(newItem);
-    } else {
-          setDraftItems(prev => {
-          const candidate = newItem;
-          const signature = getDraftSignature(candidate);
+      return;
+    }
 
-          const existing = prev.find(
-            i => getDraftSignature(i) === signature
-          );
+    // no modifiers -> group immediately
+    setDraftItems((prev) => {
+      const signature = getDraftSignature(newItem);
+      const existing = prev.find((i) => getDraftSignature(i) === signature);
+      if (existing) {
+        return prev.map((i) =>
+          i.id === existing.id ? { ...i, qty: i.qty + 1 } : i
+        );
+      }
+      return [...prev, newItem];
+    });
+  }
 
-          if (existing) {
-            return prev.map(i =>
-              i.id === existing.id
-                ? { ...i, qty: i.qty + 1 }
-                : i
-            );
-          }
+  async function sendNewItems() {
+    if (!table) return;
+    if (!draftItems || draftItems.length === 0) return;
 
-          return [...prev, candidate];
+    const itemsToSend = draftItems;
+
+    try {
+      let order;
+
+      if (!activeOrder) {
+        order = await createKitchenOrder({
+          table: { id: table._id, name: table.name },
+          orderName,
+          items: itemsToSend,
         });
+      } else {
+        order = await appendItemsToOrder(activeOrder._id, itemsToSend);
+      }
+
+      // PRINT exactly what we sent
+      const printPayload = buildThermalPrint(
+        {
+          table,
+          orderName,
+          items: itemsToSend,
+          createdAt: order?.createdAt,
+        },
+        products
+      );
+
+      console.log("PRINT ITEMS:", itemsToSend);
+      console.log("PRINT PAYLOAD:\n", printPayload);
+
+      // clear draft + refresh active order from API
+      setDraftItems([]);
+
+      const refreshed = await fetchActiveOrderByTable(table._id);
+      setActiveOrder(refreshed || order || null);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to send items");
     }
   }
 
-async function sendNewItems() {
-  if (draftItems.length === 0) return;
-
-  let order = activeOrder;
-
-  // 🟢 FIRST SEND FOR THIS TABLE → CREATE ORDER
-  if (!order) {
-    order = await createKitchenOrder({
-      table: {
-        id: table._id,
-        name: table.name,
-      },
-      items: draftItems,
-    });
-  } 
-  // 🟡 SUBSEQUENT SENDS → APPEND
-  else {
-    await appendItemsToOrder(order._id, draftItems);
-  }
-
-  // 🖨 PRINT ONLY NEW ITEMS
-  const payload = buildThermalPrint({
-    table,
-    items: draftItems,
-  });
-
-  console.log("PRINT:\n", payload);
-  // bluetoothPrint(payload) later
-
-  setDraftItems([]);
-
-  const refreshed = await fetchActiveOrderByTable(table._id);
-  setActiveOrder(refreshed);
-}
-
-
   async function markDelivered(itemId) {
-    await markItemDelivered(itemId);
-    const refreshed = await fetchActiveOrderByTable(table._id);
-    setActiveOrder(refreshed);
+    if (!table) return;
+
+    // ✅ Optimistic update (prevents UI from “jumping”)
+    setActiveOrder((prev) => {
+      if (!prev?.items) return prev;
+      return {
+        ...prev,
+        items: prev.items.map((it) =>
+          String(it._id) === String(itemId) ? { ...it, delivered: true } : it
+        ),
+      };
+    });
+
+    try {
+      await markItemDelivered(itemId);
+
+      // refresh from API
+      const refreshed = await fetchActiveOrderByTable(table._id);
+
+      // ✅ IMPORTANT: do NOT set activeOrder to null if API glitches
+      if (refreshed) {
+        setActiveOrder(refreshed);
+        // keep nickname in sync if backend returns it
+        if (typeof refreshed.orderName === "string") {
+          setOrderName(refreshed.orderName);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      // If it failed, revert optimistic change by reloading order
+      try {
+        const fallback = await fetchActiveOrderByTable(table._id);
+        if (fallback) setActiveOrder(fallback);
+      } catch {
+        // keep current UI; waiter can continue
+      }
+      alert("Failed to mark delivered");
+    }
   }
 
   async function closeTableHandler() {
     if (!activeOrder) return;
-    if (!window.confirm(`Close table ${table.name}?`)) return;
+    if (!window.confirm(`Close table ${table?.name}?`)) return;
 
-    await closeOrder(activeOrder._id);
-    setActiveOrder(null);
-    setTable(null);
-    setDraftItems([]);
+    try {
+      await closeOrder(activeOrder._id);
+      setActiveOrder(null);
+      setTable(null);
+      setDraftItems([]);
+      setOrderName("");
+      setStep("category");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to close table");
+    }
   }
 
   /* ---------- RENDER ---------- */
 
   return (
     <div className="space-y-4 pb-24">
-
       <TableMap
         tables={waiterTables}
         layout={{
@@ -281,24 +370,49 @@ async function sendNewItems() {
             )}
           </div>
 
-          {table && (
-            <ActiveOrderPanel
-              order={activeOrder}
-              draftItems={draftItems}
-              onSendNewItems={sendNewItems}
-              onMarkDelivered={markDelivered}
-              onCloseTable={closeTableHandler}
-              onUpdateDraftItem={updateDraftItem}
-              onEditDraftItem={editDraftItem}
-              onRemoveDraftItem={removeDraftItem}
+          {/* Order nickname */}
+          <div className="rounded-xl border bg-white p-3">
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Order name (optional)
+            </label>
+
+            <input
+              value={orderName}
+              onChange={(e) => setOrderName(e.target.value)}
+              placeholder="e.g. Nick’s table, Birthday, Family"
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+              onBlur={async () => {
+                // update only if there is an existing active order
+                if (!activeOrder?._id) return;
+                try {
+                  const updated = await updateOrderName(activeOrder._id, orderName);
+                  // keep in sync with backend response
+                  if (updated?.orderName !== undefined) {
+                    setOrderName(updated.orderName || "");
+                  }
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
             />
+          </div>
 
-          )}
+          {/* Active order panel (must show even when activeOrder is null) */}
+          <ActiveOrderPanel
+            order={activeOrder}
+            draftItems={draftItems}
+            onSendNewItems={sendNewItems}
+            onMarkDelivered={markDelivered}
+            onCloseTable={closeTableHandler}
+            onUpdateDraftItem={updateDraftItem}
+            onEditDraftItem={editDraftItem}
+            onRemoveDraftItem={removeDraftItem}
+          />
 
-
+          {/* Category selection */}
           {step === "category" && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {categories.map(cat => {
+              {categories.map((cat) => {
                 const s = getCategoryStyle(cat);
                 return (
                   <button
@@ -316,6 +430,7 @@ async function sendNewItems() {
             </div>
           )}
 
+          {/* Product grid */}
           {step === "products" && (
             <>
               <button onClick={() => setStep("category")} className="text-sm">
@@ -324,8 +439,8 @@ async function sendNewItems() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {products
-                  .filter(p => p.category === activeCategory && p.active)
-                  .map(p => (
+                  .filter((p) => (p.category || "Other") === activeCategory && p.active)
+                  .map((p) => (
                     <button
                       key={p._id}
                       onClick={() => addItem(p)}
@@ -340,48 +455,64 @@ async function sendNewItems() {
         </>
       )}
 
-    <ModifierModal
-      open={!!activeItem}
-      item={activeItem}
-      noteTemplates={
-        products
-          .find(p => p._id === activeItem?.productId)
-          ?.noteTemplateIds
-          ?.map(n => n.label) || []
-      }
-      allowCustomNote={activeItem?.allowCustomNote}
-      onSkip={() => setActiveItem(null)}
-      onSave={(patch) => {
-        setDraftItems(prev => {
-          const candidate = {
-            ...activeItem,
-            ...patch,
-          };
+      {/* Modifier modal */}
+      <ModifierModal
+        open={!!activeItem}
+        item={activeItem}
+        noteTemplates={
+          products
+            .find((p) => p._id === activeItem?.productId)
+            ?.noteTemplateIds?.map((n) => n.label) || []
+        }
+        allowCustomNote={activeItem?.allowCustomNote}
+        onSkip={() => setActiveItem(null)}
+        onSave={(patch) => {
+          setDraftItems((prev) => {
+            const original = prev.find((i) => i.id === activeItem.id);
 
-          const signature = getDraftSignature(candidate);
+            // 🟢 Case A: NEW item (not yet in draft)
+            if (!original) {
+              const candidate = { ...activeItem, ...patch, qty: 1 };
+              const signature = getDraftSignature(candidate);
 
-          const existing = prev.find(
-            i => getDraftSignature(i) === signature
-          );
+              const existing = prev.find((i) => getDraftSignature(i) === signature);
+              if (existing) {
+                return prev.map((i) =>
+                  i.id === existing.id ? { ...i, qty: i.qty + 1 } : i
+                );
+              }
+              return [...prev, candidate];
+            }
 
-          // 🔁 MERGE
-          if (existing) {
-            return prev.map(i =>
-              i.id === existing.id
-                ? { ...i, qty: i.qty + candidate.qty }
-                : i
-            );
-          }
+            // 🟡 Case B: EDIT existing grouped item -> split ONE unit
+            const editedUnit = {
+              ...original,
+              ...patch,
+              qty: 1,
+              id: crypto.randomUUID(),
+            };
 
-          // ➕ NEW LINE
-          return [...prev, candidate];
-        });
+            const editedSig = getDraftSignature(editedUnit);
 
-        setActiveItem(null);
-      }}
-    />
+            let next = prev
+              .map((i) =>
+                i.id === original.id ? { ...i, qty: i.qty - 1 } : i
+              )
+              .filter((i) => i.qty > 0);
 
+            const existing = next.find((i) => getDraftSignature(i) === editedSig);
+            if (existing) {
+              return next.map((i) =>
+                i.id === existing.id ? { ...i, qty: i.qty + 1 } : i
+              );
+            }
 
+            return [...next, editedUnit];
+          });
+
+          setActiveItem(null);
+        }}
+      />
     </div>
   );
 }

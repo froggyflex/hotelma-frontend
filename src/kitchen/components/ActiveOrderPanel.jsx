@@ -66,14 +66,15 @@ export default function ActiveOrderPanel({
               )}
             </div>
 
-            {!item.delivered && (
-              <button
+            {item.status !== "delivered" && (
+            <button
                 onClick={() => onMarkDelivered(item._id)}
                 className="text-xs text-emerald-600 hover:underline"
-              >
+            >
                 Mark delivered
-              </button>
+            </button>
             )}
+
           </div>
         ))}
       </div>
