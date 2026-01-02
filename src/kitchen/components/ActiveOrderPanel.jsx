@@ -1,5 +1,6 @@
 export default function ActiveOrderPanel({
   order,
+  products,
   draftItems,
   onSendNewItems,
   onMarkDelivered,
@@ -10,6 +11,10 @@ export default function ActiveOrderPanel({
 }) {
   const sentItems = order?.items || [];
   const hasOrder = !!order;
+
+  const productMap = new Map(
+    products.map(p => [String(p._id), p])
+  );
 
   return (
     <div className="rounded-2xl border bg-white p-4 space-y-4">
@@ -47,36 +52,49 @@ export default function ActiveOrderPanel({
           <div className="text-sm text-slate-400">No items sent yet</div>
         )}
 
-        {sentItems.map(item => (
-          <div
-            key={item._id}
-            className="flex items-start justify-between rounded-lg border px-3 py-2 text-sm"
-          >
-            <div>
-              <div className="font-medium">
-                {item.qty} × {item.name}
-              </div>
+            {sentItems.map(item => {
+            const product = productMap.get(String(item.productId));
+            const category = product?.category || "Other";
 
-              {(item.notes?.length > 0 || item.customNote) && (
-                <div className="mt-1 text-xs text-slate-500">
-                  {[...(item.notes || []), item.customNote]
-                    .filter(Boolean)
-                    .join(", ")}
+            return (
+                <div
+                key={item._id}
+                className="flex items-start justify-between rounded-lg border px-3 py-2 text-sm"
+                >
+                <div>
+                    {/* CATEGORY */}
+                    <div className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+                    {category}
+                    </div>
+                    <div className="font-medium">
+                    {item.qty}× {item.name}
+                    </div>
+
+
+
+                    {/* NOTES */}
+                    {(item.notes?.length > 0 || item.customNote) && (
+                    <div className="mt-1 text-xs text-slate-500">
+                        {[...(item.notes || []), item.customNote]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </div>
+                    )}
                 </div>
-              )}
-            </div>
 
-            {item.status !== "delivered" && (
-            <button
-                onClick={() => onMarkDelivered(item._id)}
-                className="text-xs text-emerald-600 hover:underline"
-            >
-                Mark delivered
-            </button>
-            )}
+                {/* DELIVERED BUTTON */}
+                {item.status !== "delivered" && (
+                    <button
+                    onClick={() => onMarkDelivered(item._id)}
+                    className="text-xs text-emerald-600 hover:underline"
+                    >
+                    Mark delivered
+                    </button>
+                )}
+                </div>
+            );
+            })}
 
-          </div>
-        ))}
       </div>
 
       {/* DRAFT ITEMS */}

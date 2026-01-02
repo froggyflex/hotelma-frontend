@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 
 /**
  * TableMap
@@ -82,6 +82,7 @@ function TableNode({
   admin,
   onClick,
   onDragStart,
+  isOpen
 }) {
   const half = size / 2;
 
@@ -102,8 +103,8 @@ function TableNode({
         height={size}
         rx={16}
         ry={16}
-        fill={fill}
-        stroke={stroke}
+        fill={isOpen ? "#a7f3d0" : fill}
+        stroke={isOpen ? "#059669" : stroke}
         strokeWidth="3"
       />
       <text
@@ -129,6 +130,7 @@ export default function TableMap({
   onSelect,
   admin = false,
   onDragStart,
+  openTableIds=[]
 }) {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
 
@@ -145,6 +147,7 @@ export default function TableMap({
       </div>
     );
   }
+
 
   return (
     <div className="rounded-2xl border bg-white p-3 shadow-sm">
@@ -168,6 +171,7 @@ export default function TableMap({
             width={effectiveLayout.width}
             height={effectiveLayout.height}
             fill="#F8FAFC"
+
           />
 
           {/* doors */}
@@ -178,7 +182,9 @@ export default function TableMap({
           {/* tables */}
           {sortedTables.map((t, idx) => {
             const pos = t._pos;
+            const openSet = new Set(openTableIds.map(String));
 
+            const isOpen = openSet.has(String(t._id));
             if (
               !pos ||
               typeof pos.x !== "number" ||
@@ -186,7 +192,7 @@ export default function TableMap({
             ) {
               return null;
             }
-
+ 
             return (
               <TableNode
                 key={t._id}
@@ -201,6 +207,8 @@ export default function TableMap({
                 admin={admin}
                 onClick={() => onSelect?.(t)}
                 onDragStart={() => onDragStart?.(t._id)}
+                isOpen = {isOpen}
+ 
               />
             );
           })}

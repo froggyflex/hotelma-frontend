@@ -88,6 +88,11 @@ export default function OrderPage() {
 
   // nickname shown on ticket (order-level)
   const [orderName, setOrderName] = useState("");
+  const [openTableIds, setOpenTableIds] = useState([]);
+  
+  const [openTables, setOpenTables] = useState([]);
+
+
 
   /* ---------- MEMOS ---------- */
 
@@ -104,6 +109,13 @@ export default function OrderPage() {
   }, [tables, tableMap]);
 
   /* ---------- LOAD BASE DATA ---------- */
+
+  useEffect(() => {
+      fetch(`${import.meta.env.VITE_API_URL}/api/kitchen/orders/active`)
+        .then(res => res.json())
+        .then(setOpenTableIds)
+        .catch(() => setOpenTableIds([]));
+    }, []);
 
   useEffect(() => {
     async function load() {
@@ -345,6 +357,7 @@ export default function OrderPage() {
         }}
         selectedTableId={table?._id}
         onSelect={openTable}
+        openTableIds={openTableIds}
       />
 
       {!table && (
@@ -400,6 +413,7 @@ export default function OrderPage() {
           {/* Active order panel (must show even when activeOrder is null) */}
           <ActiveOrderPanel
             order={activeOrder}
+            products={products}
             draftItems={draftItems}
             onSendNewItems={sendNewItems}
             onMarkDelivered={markDelivered}
@@ -407,6 +421,7 @@ export default function OrderPage() {
             onUpdateDraftItem={updateDraftItem}
             onEditDraftItem={editDraftItem}
             onRemoveDraftItem={removeDraftItem}
+            
           />
 
           {/* Category selection */}
