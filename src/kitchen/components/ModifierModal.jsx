@@ -1,153 +1,107 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function ModifierModal({
   open,
   item,
-  noteTemplates,
-  allowCustomNote,
+  noteTemplates = [],
+  allowCustomNote = false,
   onSave,
   onSkip,
 }) {
-  const [selected, setSelected] = useState([]);
+  // ✅ Hooks ALWAYS run
+  const [selectedNotes, setSelectedNotes] = useState([]);
   const [customNote, setCustomNote] = useState("");
-  const [qty, setQty] = useState(1);
 
+  // ✅ Sync when item changes
   useEffect(() => {
-    if (item) {
-      setQty(item.qty ?? 1);
-      setCustomNote(item.customNote || "");
-      setSelected(
-        item.customNote
-          ? item.customNote.split(" · ").filter(Boolean)
-          : []
-      );
-    }
-  }, [item, open]);
+    if (!item) return;
+    setSelectedNotes(item.notes || []);
+    setCustomNote(item.customNote || "");
+  }, [item]);
 
+  // ✅ Conditional render AFTER hooks
   if (!open || !item) return null;
 
-  function toggle(label) {
-    setSelected((prev) => {
-      let next;
-
-      if (prev.includes(label)) {
-        next = prev.filter((l) => l !== label);
-      } else {
-        next = [...prev, label];
-      }
-
-      // 🔑 sync labels → customNote
-      setCustomNote(next.join(" · "));
-
-      return next;
-    });
-  }
-
-  function save() {
-    onSave({
-      qty,
-      customNote,
-    });
+  function toggleNote(note) {
+    setSelectedNotes(prev =>
+      prev.includes(note)
+        ? prev.filter(n => n !== note)
+        : [...prev, note]
+    );
   }
 
   return (
-    <div className="fixed inset-0 z-50">
-      {/* overlay */}
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={onSkip}
-      />
-
-      {/* modal */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-xl max-h-[85vh] overflow-auto">
-        <div className="px-4 py-3 border-b border-slate-200">
-          <div className="text-sm font-semibold">
-            Modify {item.name}
-          </div>
-          <div className="text-xs text-slate-500">
-            Ingredient changes
-          </div>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+      <div className="w-full max-w-md rounded-t-2xl bg-white p-4 space-y-4">
+        {/* HEADER */}
+        <div className="text-lg font-semibold">
+          {item.name}
         </div>
 
-        <div className="p-4 space-y-3">
-          {noteTemplates.length === 0 && !allowCustomNote && (
-            <div className="text-sm text-slate-500">
-              No modifications available.
+        {/* PREDEFINED MODIFIERS */}
+        {noteTemplates.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-600">
+              Modifiers
             </div>
-          )}
 
-          {/* NOTE LABELS */}
-          {noteTemplates.map((n) => (
-            <button
-              key={n._id}
-              onClick={() => toggle(n.label)}
-              className={[
-                "w-full flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium",
-                selected.includes(n.label)
-                  ? "bg-slate-900 text-white border-slate-900"
-                  : "bg-white border-slate-200 text-slate-700",
-              ].join(" ")}
-            >
-              {n.label}
-              {selected.includes(n.label) && "✓"}
-            </button>
-          ))}
-
-          {/* QTY */}
-          <div className="flex items-center justify-center gap-4 mb-4">
-            <button
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
-              className="w-10 h-10 rounded-full border"
-            >
-              −
-            </button>
-
-            <span className="text-lg font-semibold">{qty}</span>
-
-            <button
-              onClick={() => setQty((q) => q + 1)}
-              className="w-10 h-10 rounded-full border"
-            >
-              +
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {noteTemplates.map(note => {
+                const active = selectedNotes.includes(note);
+                return (
+                  <button
+                    key={note}
+                    type="button"
+                    onClick={() => toggleNote(note)}
+                    className={`rounded-full px-3 py-1 text-sm border transition
+                      ${
+                        active
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-slate-50 text-slate-700 border-slate-200"
+                      }`}
+                  >
+                    {note}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        )}
 
-          {/* CUSTOM NOTE (editable, stays in sync) */}
-          {allowCustomNote && (
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">
-                Custom instruction
-              </label>
-              <textarea
-                rows={2}
-                value={customNote}
-                onChange={(e) => {
-                  setCustomNote(e.target.value);
-                  setSelected(
-                    e.target.value
-                      .split(" · ")
-                      .filter(Boolean)
-                  );
-                }}
-                placeholder="e.g. No salt, well done"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-          )}
-        </div>
+        {/* CUSTOM NOTE */}
+        {allowCustomNote && (
+          <div className="space-y-1">
+            <label className="text-sm text-slate-600">
+              Custom note
+            </label>
+            <input
+              value={customNote}
+              onChange={e => setCustomNote(e.target.value)}
+              placeholder="e.g. no sugar, well done"
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+            />
+          </div>
+        )}
 
-        <div className="p-4 border-t border-slate-200 flex justify-between">
+        {/* ACTIONS */}
+        <div className="flex gap-3 pt-2">
           <button
             onClick={onSkip}
-            className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
+            className="flex-1 rounded-xl border py-2 text-sm"
           >
             Skip
           </button>
+
           <button
-            onClick={save}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            onClick={() =>
+              onSave({
+                notes: selectedNotes,
+                customNote,
+              })
+            }
+            className="flex-1 rounded-xl bg-slate-900 py-2 text-sm text-white"
           >
-            Done
+            Add
           </button>
         </div>
       </div>

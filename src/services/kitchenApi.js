@@ -36,3 +36,22 @@ export const updateKitchenTable = (id, data) =>
 
 export const createKitchenProductsBulk = (payload) =>
   API.post("/api/kitchen/products/bulk", payload);
+
+export const updateProductNotes = async (productId, noteTemplateIds) => {
+  const res = await API.put(
+    `/api/kitchen/products/${productId}/notes`,
+    { noteTemplateIds }
+  );
+  return res.data;
+};
+export const bulkApplyNotesToCategory = async ({
+  category,
+  noteTemplateIds,
+  mode = "merge",
+}) => {
+  const res = await API.put(
+    "/api/kitchen/products/bulk/apply-notes",
+    { category, noteTemplateIds, mode }
+  );
+  return res.data;
+};

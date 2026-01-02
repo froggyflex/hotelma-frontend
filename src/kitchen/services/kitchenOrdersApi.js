@@ -46,3 +46,51 @@ export const updateOrderPrintStatus = async (orderId, payload) => {
   );
   return res.data;
 };
+
+export async function fetchActiveOrderByTable(tableId) {
+  const res = await fetch(
+    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/active/${tableId}`
+  );
+  return res.json();
+}
+
+export async function addItemsToOrder(orderId, items) {
+  const res = await fetch(
+    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/items`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    }
+  );
+  return res.json();
+}
+
+export async function markOrderPrinted(orderId) {
+  await fetch(
+    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/print`,
+    { method: "POST" }
+  );
+}
+
+export async function markItemDelivered(itemId) {
+  await fetch(
+    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/items/${itemId}/delivered`,
+    { method: "PATCH" }
+  );
+}
+export async function closeOrder(orderId) {
+  await fetch(
+    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/close`,
+    { method: "POST" }
+  );
+}
+
+export const appendItemsToOrder = async (orderId, items) => {
+   await fetch(
+    `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/items${items}`,
+    { method: "POST" }
+  );
+};
+
+

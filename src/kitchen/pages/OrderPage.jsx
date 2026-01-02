@@ -1,62 +1,28 @@
 import { useEffect, useState, useMemo } from "react";
+import axios from "axios";
+
 import {
   fetchActiveProducts,
   fetchActiveTables,
   fetchActiveNotes,
-  fetchOrdersByTable,
+  fetchActiveOrderByTable,
+  appendItemsToOrder,
+  markItemDelivered,
+  closeOrder,
+  createKitchenOrder
 } from "../services/kitchenOrdersApi";
 
-import OrderSheet from "../components/OrderSheet";
 import ModifierModal from "../components/ModifierModal";
-import {
-  updateOrderPrintStatus,
-} from "../services/kitchenOrdersApi";
-import { buildThermalPrint } from "../utils/buildThermalPrint";
+import ActiveOrderPanel from "../components/ActiveOrderPanel";
 import TableMap from "../components/TableMap";
-import axios from "axios";
-import { getKitchenNotes } from "../../services/kitchenApi";
+import { buildThermalPrint } from "../utils/buildThermalPrint";
+
+/* ---------------- CATEGORY STYLES ---------------- */
 
 const CATEGORY_COLOR_GROUPS = [
-  {
-    match: ["drink", "ouzo", "wine", "beer", "coffee", "juice", "slush"],
-    style: {
-      bg: "bg-blue-50",
-      border: "border-blue-200",
-      text: "text-blue-700",
-    },
-  },
-  {
-    match: ["italian", "greek", "burger", "pizza"],
-    style: {
-      bg: "bg-emerald-50",
-      border: "border-emerald-200",
-      text: "text-emerald-700",
-    },
-  },
-  {
-    match: ["dessert", "sweet", "ice"],
-    style: {
-      bg: "bg-rose-50",
-      border: "border-rose-200",
-      text: "text-rose-700",
-    },
-  },
-  {
-    match: ["starters", "salads", "menu"],
-    style: {
-      bg: "bg-amber-50",
-      border: "border-amber-200",
-      text: "text-amber-700",
-    },
-  },
-    {
-    match: ["breakfast", "side", "omelettes", "toast", "sandwiches"],
-    style: {
-      bg: "bg-teal-50",
-      border: "border-teal-200",
-      text: "text-teal-700",
-    },
-  },
+  { match: ["drink", "wine", "beer", "coffee", "juice"], bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700" },
+  { match: ["food", "pizza", "burger", "pasta"], bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700" },
+  { match: ["dessert", "sweet"], bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700" },
 ];
 
 const DEFAULT_CATEGORY_STYLE = {
@@ -65,7 +31,16 @@ const DEFAULT_CATEGORY_STYLE = {
   text: "text-slate-700",
 };
 
+function getCategoryStyle(cat) {
+  if (!cat) return DEFAULT_CATEGORY_STYLE;
+  const c = cat.toLowerCase();
+  return CATEGORY_COLOR_GROUPS.find(g => g.match.some(m => c.includes(m))) ?? DEFAULT_CATEGORY_STYLE;
+}
+
+/* ---------------- COMPONENT ---------------- */
+
 export default function OrderPage() {
+  /* ---------- STATE ---------- */
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -74,83 +49,31 @@ export default function OrderPage() {
   const [notes, setNotes] = useState([]);
 
   const [table, setTable] = useState(null);
-  const [tableNote, setTableNote] = useState("");
-
-  const [items, setItems] = useState([]);
-  const [reviewOpen, setReviewOpen] = useState(false);
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [draftItems, setDraftItems] = useState([]);
 
   const [activeItem, setActiveItem] = useState(null);
 
-  // waiter flow
   const [step, setStep] = useState("category");
   const [activeCategory, setActiveCategory] = useState("");
 
-  const [mode, setMode] = useState("new"); // "new" | "history"
-  const [pastOrders, setPastOrders] = useState([]);
-  const [tableMap, setTableMap] = useState(null)
+  const [tableMap, setTableMap] = useState(null);
 
+  /* ---------- MEMOS ---------- */
 
-  const categories = Array.from(
-    new Set(products.map(p => p.category || "Other"))
-  );
+  const categories = useMemo(() => {
+    return Array.from(new Set(products.map(p => p.category || "Other")));
+  }, [products]);
 
-  useEffect(() => {
-    getKitchenNotes().then(res => {
-      setNotes(res.data.filter(n => n.active));
-    });
-  }, []);
+  const waiterTables = useMemo(() => {
+    if (!tableMap?.tables) return [];
+    return tables.map(t => ({
+      ...t,
+      _pos: tableMap.tables.find(p => String(p.tableId) === String(t._id)),
+    }));
+  }, [tables, tableMap]);
 
-  useEffect(() => {
-    axios.get(`${import.meta.env.VITE_API_URL}/api/table-map`)
-      .then(res => setTableMap(res.data))
-      .catch(() => setTableMap(null));
-  }, []);
-
-
-  function getNotesForCategory(category) {
-    if (!category) return [];
-
-    return notes.filter(
-      n => n.active && n.category === category
-    );
-  }
-  function getNotesForProduct(product) {
-    if (!product) return [];
-
-    const allowedIds = new Set(
-      (product.noteTemplateIds || []).map(n =>
-        typeof n === "string" ? n : n._id
-      )
-    );
-
-    return notes.filter(
-      n =>
-        n.active &&
-        n.category === product.category &&
-        allowedIds.has(n._id)
-    );
-  }
-  function openTable(t) {
-    // Immediate open behavior
-    setTable(t);
-    setMode("new");
-    setStep("category");
-    setActiveCategory(""); // will auto-set from effect
-    setTableNote("");
-    setItems([]);
-    setReviewOpen(false);
-    setActiveItem(null);
-
-    // optional: scroll to top so user sees the order UI immediately
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  } 
- 
-  useEffect(() => {
-    if (!activeCategory && categories.length > 0) {
-      setActiveCategory(categories[0]);
-      
-    }
-  }, [categories]);
+  /* ---------- EFFECTS ---------- */
 
   useEffect(() => {
     async function load() {
@@ -164,9 +87,8 @@ export default function OrderPage() {
         setTables(t);
         setProducts(p);
         setNotes(n);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load kitchen data");
+      } catch {
+        setError("Failed to load data");
       } finally {
         setLoading(false);
       }
@@ -175,81 +97,55 @@ export default function OrderPage() {
   }, []);
 
   useEffect(() => {
+    axios
+      .get(`${import.meta.env.VITE_API_URL}/api/table-map`)
+      .then(res => setTableMap(res.data))
+      .catch(() => setTableMap(null));
+  }, []);
+
+  useEffect(() => {
     if (!table) return;
-    fetchOrdersByTable(table._id).then(setPastOrders);
+
+    async function loadActive() {
+      const order = await fetchActiveOrderByTable(table._id);
+      setActiveOrder(order);
+      setDraftItems([]);
+      setStep("category");
+    }
+
+    loadActive();
   }, [table]);
 
-  const waiterTables = useMemo(() => {
-  if (!tableMap?.tables?.length) return [];
-  return tables.map(t => ({
-    ...t,
-    _pos: tableMap.tables.find(
-      p => String(p.tableId) === String(t._id)
-    ),
-  }));
-}, [tables, tableMap]);
+  /* ---------- EARLY RETURNS ---------- */
 
-  async function handleReprint(order) {
-    try {
-      const printPayload = buildThermalPrint(
-        {
-          table: order.table,
-          tableNote: order.tableNote,
-          items: order.items,
-          createdAt: order.createdAt,
-        },
-        products
-      );
+  if (loading) return <div className="py-10 text-center">Loading…</div>;
+  if (error) return <div className="py-10 text-center text-red-600">{error}</div>;
 
-      // TEMP: replace later with bluetooth print
-      console.log("REPRINT PAYLOAD:\n", printPayload);
+  /* ---------- HELPERS ---------- */
 
-      // mark as printed (temporary success)
-      await updateOrderPrintStatus(order._id, { success: true });
-
-      // refresh past orders
-      fetchOrdersByTable(table._id).then(setPastOrders);
-
-      alert("Reprint successful");
-    } catch (err) {
-      console.error(err);
-
-      await updateOrderPrintStatus(order._id, {
-        success: false,
-        error: err.message,
-      });
-
-      alert("Reprint failed");
-    }
+  function openTable(t) {
+    setTable(t);
+    setActiveItem(null);
   }
 
-
-  function itemSignature(item) {
-    return JSON.stringify({
-      productId: item.productId,
-      notes: [...(item.notes || [])].sort(),
-      customNote: item.customNote || "",
-    });
+  function updateDraftItem(id, patch) {
+    setDraftItems(prev =>
+      prev.map(i => (i.id === id ? { ...i, ...patch } : i))
+    );
   }
 
-  function addOrMergeItem(newItem) {
-    setItems(prev => {
-      const newSig = itemSignature(newItem);
+  function editDraftItem(item) {
+    setActiveItem(item);
+  }
 
-      const existing = prev.find(
-        i => itemSignature(i) === newSig
-      );
+  function removeDraftItem(id) {
+    setDraftItems(prev => prev.filter(i => i.id !== id));
+  }
+  function getDraftSignature(item) {
+    const notesKey = (item.notes || []).slice().sort().join("|");
+    const customKey = item.customNote?.trim() || "";
 
-      if (existing) {
-        return prev.map(i =>
-          itemSignature(i) === newSig
-            ? { ...i, qty: i.qty + newItem.qty }
-            : i
-        );
-      }
-
-      return [...prev, newItem];
-    });
+    return `${item.productId}__${notesKey}__${customKey}`;
   }
 
   function addItem(product) {
@@ -259,258 +155,170 @@ export default function OrderPage() {
       id: crypto.randomUUID(),
       productId: product._id,
       name: product.name,
+      qty: 1,
       notes: [],
       customNote: "",
       allowCustomNote: product.allowCustomNote,
-      qty:1
     };
 
-    setItems(prev => [...prev, newItem]);
-
     const hasModifiers =
-      (product.noteTemplateIds && product.noteTemplateIds.length > 0) ||
+      (product.noteTemplateIds?.length > 0) ||
       product.allowCustomNote;
 
     if (hasModifiers) {
-      setActiveItem(newItem); // wait for modal
+      setActiveItem(newItem);
     } else {
-      addOrMergeItem(newItem);
+          setDraftItems(prev => {
+          const candidate = newItem;
+          const signature = getDraftSignature(candidate);
+
+          const existing = prev.find(
+            i => getDraftSignature(i) === signature
+          );
+
+          if (existing) {
+            return prev.map(i =>
+              i.id === existing.id
+                ? { ...i, qty: i.qty + 1 }
+                : i
+            );
+          }
+
+          return [...prev, candidate];
+        });
     }
   }
 
-  if (loading) {
-    return <div className="text-center py-10 text-slate-500">Loading…</div>;
+async function sendNewItems() {
+  if (draftItems.length === 0) return;
+
+  let order = activeOrder;
+
+  // 🟢 FIRST SEND FOR THIS TABLE → CREATE ORDER
+  if (!order) {
+    order = await createKitchenOrder({
+      table: {
+        id: table._id,
+        name: table.name,
+      },
+      items: draftItems,
+    });
+  } 
+  // 🟡 SUBSEQUENT SENDS → APPEND
+  else {
+    await appendItemsToOrder(order._id, draftItems);
   }
 
-  if (error) {
-    return <div className="text-center py-10 text-red-600">{error}</div>;
-  }
+  // 🖨 PRINT ONLY NEW ITEMS
+  const payload = buildThermalPrint({
+    table,
+    items: draftItems,
+  });
 
-  function OrderStatusBadge({ status }) {
-    if (status === "printed") {
-      return (
-        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-          🟢 Printed
-        </span>
-      );
-    }
+  console.log("PRINT:\n", payload);
+  // bluetoothPrint(payload) later
 
-    if (status === "failed") {
-      return (
-        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-          🔴 Print failed
-        </span>
-      );
-    }
+  setDraftItems([]);
 
-    return (
-      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
-        🟡 Pending
-      </span>
-    );
-  }
-
-  function normalizeCategory(cat) {
-    return cat?.trim().toLowerCase();
-  }
-function getCategoryStyle(category) {
-  if (!category) return DEFAULT_CATEGORY_STYLE;
-
-  const normalized = category.toLowerCase();
-
-  for (const group of CATEGORY_COLOR_GROUPS) {
-    if (group.match.some(word => normalized.includes(word))) {
-      return group.style;
-    }
-  }
-
-  return DEFAULT_CATEGORY_STYLE;
+  const refreshed = await fetchActiveOrderByTable(table._id);
+  setActiveOrder(refreshed);
 }
 
 
+  async function markDelivered(itemId) {
+    await markItemDelivered(itemId);
+    const refreshed = await fetchActiveOrderByTable(table._id);
+    setActiveOrder(refreshed);
+  }
+
+  async function closeTableHandler() {
+    if (!activeOrder) return;
+    if (!window.confirm(`Close table ${table.name}?`)) return;
+
+    await closeOrder(activeOrder._id);
+    setActiveOrder(null);
+    setTable(null);
+    setDraftItems([]);
+  }
+
+  /* ---------- RENDER ---------- */
+
   return (
-    
-    
     <div className="space-y-4 pb-24">
 
-      {/* FALLBACK SELECTOR (optional) */}
-      <details className="rounded-2xl border bg-white p-4 shadow-sm">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-          Table selector (fallback)
-        </summary>
-
-        <div className="mt-3 space-y-3">
-          <label className="block text-xs font-medium text-slate-500">TABLE</label>
-          <select
-            value={table?._id || ""}
-            onChange={(e) => {
-              const selected = tables.find(t => t._id === e.target.value) || null;
-              if (selected) openTable(selected);
-            }}
-            className="w-full rounded-xl border px-3 py-3 text-base"
-          >
-            <option value="">Select table…</option>
-            {tables.map(t => (
-              <option key={t._id} value={t._id}>{t.name}</option>
-            ))}
-          </select>
-        </div>
-      </details>
-
-      {/* TABLE MAP (PRIMARY) */}
       <TableMap
         tables={waiterTables}
         layout={{
           width: tableMap?.width ?? 1600,
           height: tableMap?.height ?? 900,
-          tableSize:tableMap?.tableSize ?? 110,
+          tableSize: tableMap?.tableSize ?? 120,
           doors: tableMap?.doors ?? [],
         }}
         selectedTableId={table?._id}
         onSelect={openTable}
       />
- 
-      {/* EVERYTHING BELOW REQUIRES A TABLE */}
+
       {!table && (
-        <div className="text-center text-slate-400 py-10">
+        <div className="py-10 text-center text-slate-400">
           Select a table to start ordering
         </div>
       )}
 
       {table && (
         <>
-          {/* MODE SWITCH */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => setMode("new")}
-              className={`rounded-xl px-4 py-2 text-sm ${
-                mode === "new"
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100"
-              }`}
-            >
-              ➕ New Order
-            </button>
+          <div className="flex items-center justify-between">
+            <div className="font-semibold">
+              {activeOrder ? "🟢 Active Table" : "🟡 New Table"}
+            </div>
 
-            <button
-              onClick={() => setMode("history")}
-              className={`rounded-xl px-4 py-2 text-sm ${
-                mode === "history"
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100"
-              }`}
-            >
-              🧾 Past Orders ({pastOrders.length})
-            </button>
+            {activeOrder && (
+              <button
+                onClick={closeTableHandler}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white"
+              >
+                🔒 Close Table
+              </button>
+            )}
           </div>
 
-          {/* ORDER NOTE */}
-          <input
-            value={tableNote}
-            onChange={(e) => setTableNote(e.target.value)}
-            placeholder="Order's name (optional)"
-            className="w-full rounded-lg border px-3 py-2 text-sm"
-          />
+          {table && (
+            <ActiveOrderPanel
+              order={activeOrder}
+              draftItems={draftItems}
+              onSendNewItems={sendNewItems}
+              onMarkDelivered={markDelivered}
+              onCloseTable={closeTableHandler}
+              onUpdateDraftItem={updateDraftItem}
+              onEditDraftItem={editDraftItem}
+              onRemoveDraftItem={removeDraftItem}
+            />
 
-          {/* HISTORY MODE */}
-          {mode === "history" && (
-            <div className="space-y-4">
-              {pastOrders.length === 0 && (
-                <div className="text-center text-slate-400 py-10">
-                  No orders in the last 24 hours
-                </div>
-              )}
-
-              {pastOrders.map(order => (
-                <div
-                  key={order._id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
-                >
-                  {/* HEADER */}
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-slate-500">
-                      {order.tableNote} - {new Date(order.createdAt).toLocaleTimeString()}
-                    </div>
-
-                    <OrderStatusBadge status={order.status} />
-                  </div>
-
-                  {/* ITEMS */}
-                  <div className="space-y-1">
-                    {order.items.map((item, idx) => (
-                      <div key={idx} className="text-sm">
-                       
-                        • {item.qty} × {item.name}  
-                          
-                        {item.customNote && (" - "+[item.customNote])}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* ACTIONS */}
-                  {(order.status === "pending" || order.status === "failed") && (
-                    <button
-                      onClick={() => handleReprint(order)}
-                      className="mt-2 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-                    >
-                      🔁 Reprint
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
           )}
 
 
-          {/* NEW ORDER MODE */}
-          {mode === "new" && step === "category" && (
+          {step === "category" && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              
-            {categories.map(cat => {
-               
-              const style = getCategoryStyle(cat);
-
-              return (
-                <button
-                  key={cat}
-                  onClick={() => {
-                    setActiveCategory(cat);
-                    setStep("products");
-                  }}
-                  className={[
-                    "rounded-2xl px-4 py-6 border transition shadow-sm",
-                    "flex flex-col items-start gap-2",
-                    style.bg,
-                    style.border,
-                    "hover:brightness-[0.97]",
-                  ].join(" ")}
-                >
-                  <div className="text-xs uppercase tracking-wide text-slate-500">
-                    Category
-                  </div>
-
-                  <div className={`text-lg font-semibold ${style.text}`}>
-                    {cat}
-                  </div>
-
-                  <div className="text-xs text-slate-500">
-                    Tap to view items
-                  </div>
-                </button>
-              );
-            })}
-
+              {categories.map(cat => {
+                const s = getCategoryStyle(cat);
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      setActiveCategory(cat);
+                      setStep("products");
+                    }}
+                    className={`rounded-2xl border px-4 py-6 ${s.bg} ${s.border}`}
+                  >
+                    <div className={`font-semibold ${s.text}`}>{cat}</div>
+                  </button>
+                );
+              })}
             </div>
-          
           )}
-          
 
-          {mode === "new" && step === "products" && (
+          {step === "products" && (
             <>
-              <button
-                onClick={() => setStep("category")}
-                className="text-sm"
-              >
+              <button onClick={() => setStep("category")} className="text-sm">
                 ← Back
               </button>
 
@@ -529,89 +337,51 @@ function getCategoryStyle(category) {
               </div>
             </>
           )}
-
-          {/* BOTTOM ACTION BAR */}
-          {mode === "new" && (
-            <div className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white">
-              <div className="mx-auto max-w-3xl px-4 py-3 flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold">
-                    🧾 Order · {items.length} item
-                    {items.length === 1 ? "" : "s"}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Table: {table.name}
-                    {tableNote ? ` — ${tableNote}` : ""}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setReviewOpen(true)}
-                  disabled={items.length === 0}
-                  className={[
-                    "rounded-xl px-4 py-2 text-sm font-medium transition",
-                    items.length > 0
-                      ? "bg-slate-900 text-white hover:bg-slate-800"
-                      : "bg-slate-200 text-slate-500 cursor-not-allowed",
-                  ].join(" ")}
-                >
-                  View
-                </button>
-              </div>
-            </div>
-          )}
         </>
       )}
 
-      {/* MODIFIER MODAL */}
-      <ModifierModal
-        open={!!activeItem}
-        item={activeItem}
-        noteTemplates={
-          getNotesForCategory(
-            products.find(p => p._id === activeItem?.productId)?.category
-          )
-        }
-        allowCustomNote={activeItem?.allowCustomNote}
-        onSkip={() => setActiveItem(null)}
-        onSave={(patch) => {
-          setItems(prev => {
-            const filtered = prev.filter(i => i.id !== activeItem.id);
-            const completedItem = {
-              ...activeItem,
-              ...patch,
-            };
+    <ModifierModal
+      open={!!activeItem}
+      item={activeItem}
+      noteTemplates={
+        products
+          .find(p => p._id === activeItem?.productId)
+          ?.noteTemplateIds
+          ?.map(n => n.label) || []
+      }
+      allowCustomNote={activeItem?.allowCustomNote}
+      onSkip={() => setActiveItem(null)}
+      onSave={(patch) => {
+        setDraftItems(prev => {
+          const candidate = {
+            ...activeItem,
+            ...patch,
+          };
 
-            const sig = itemSignature(completedItem);
-            const existing = filtered.find(i => itemSignature(i) === sig);
+          const signature = getDraftSignature(candidate);
 
-            if (existing) {
-              return filtered.map(i =>
-                itemSignature(i) === sig
-                  ? { ...i, qty: i.qty + completedItem.qty }
-                  : i
-              );
-            }
+          const existing = prev.find(
+            i => getDraftSignature(i) === signature
+          );
 
-            return [...filtered, completedItem];
-          });
+          // 🔁 MERGE
+          if (existing) {
+            return prev.map(i =>
+              i.id === existing.id
+                ? { ...i, qty: i.qty + candidate.qty }
+                : i
+            );
+          }
 
-          setActiveItem(null);
-        }}
-      />
+          // ➕ NEW LINE
+          return [...prev, candidate];
+        });
+
+        setActiveItem(null);
+      }}
+    />
 
 
-
-      {/* ORDER REVIEW */}
-      <OrderSheet
-        open={reviewOpen}
-        onClose={() => setReviewOpen(false)}
-        table={table}
-        tableNote={tableNote}
-        items={items}
-        setItems={setItems}
-        products={products}
-      />
     </div>
   );
 }

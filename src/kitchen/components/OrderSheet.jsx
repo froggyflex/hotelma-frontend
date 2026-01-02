@@ -49,47 +49,54 @@ export default function OrderSheet({
 
 async function sendOrder() {
   try {
-    // 1️⃣ Save order FIRST
+    // 1️⃣ Append items to active order (or create if none)
     const order = await createKitchenOrder({
       table: { id: table._id, name: table.name },
-      tableNote,
       items,
     });
 
-    // 2️⃣ Build thermal payload
+    // 2️⃣ Only NEW items should be printed
+    const newItems = order.items.filter(i => i.status === "new");
+
+    if (newItems.length === 0) {
+      alert("No new items to send");
+      return;
+    }
+
+    // 3️⃣ Build thermal payload ONLY for new items
     const printPayload = buildThermalPrint(
       {
         table,
-        tableNote,
-        items,
-        createdAt: order.createdAt,
+        items: newItems,
+        createdAt: new Date(),
       },
       products
     );
 
-    // 3️⃣ Attempt print (placeholder for now)
+    // 4️⃣ Attempt print
     try {
-      // later: bluetoothPrint(printPayload)
-      console.log("PRINT PAYLOAD:\n", printPayload);
+      // later: await bluetoothPrint(printPayload)
+      console.log("PRINT PAYLOAD (NEW ITEMS ONLY):\n", printPayload);
 
-      // 4️⃣ Mark as printed (TEMP: always success)
-      await updateOrderPrintStatus(order._id, { success: true });
+      // 5️⃣ Mark ONLY new items as printed
+      await markOrderPrinted(order._id);
+
     } catch (printErr) {
-      // 5️⃣ Mark as failed
-      await updateOrderPrintStatus(order._id, {
-        success: false,
-        error: printErr.message,
-      });
+      console.error("Print failed:", printErr);
+      alert("Printer error – items NOT marked as sent");
+      return;
     }
 
+    // 6️⃣ Clear local draft (NOT the order)
     setItems([]);
     onClose();
-    alert("Order saved");
+
   } catch (err) {
     console.error(err);
     alert("Failed to send order");
   }
 }
+
 
   function changeQty(id, delta) {
     setItems(prev =>
