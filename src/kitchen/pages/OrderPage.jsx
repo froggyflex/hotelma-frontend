@@ -10,13 +10,16 @@ import {
   markItemDelivered,
   closeOrder,
   createKitchenOrder,
-  updateOrderName, // ✅ was missing
+  updateOrderName,  
 } from "../services/kitchenOrdersApi";
 
 import ModifierModal from "../components/ModifierModal";
 import ActiveOrderPanel from "../components/ActiveOrderPanel";
 import TableMap from "../components/TableMap";
 import { buildThermalPrint } from "../utils/buildThermalPrint";
+
+import i18n from "i18next";
+import { useTranslation } from "react-i18next";
 
 /* ---------------- CATEGORY STYLES ---------------- */
 
@@ -65,6 +68,7 @@ function getDraftSignature(item) {
 /* ---------------- COMPONENT ---------------- */
 
 export default function OrderPage() {
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -92,7 +96,7 @@ export default function OrderPage() {
   
   const [openTables, setOpenTables] = useState([]);
 
-
+  const { t } = useTranslation(); 
 
   /* ---------- MEMOS ---------- */
 
@@ -288,7 +292,7 @@ export default function OrderPage() {
   async function markDelivered(itemId) {
     if (!table) return;
 
-    // ✅ Optimistic update (prevents UI from “jumping”)
+    //  Optimistic update (prevents UI from “jumping”)
     setActiveOrder((prev) => {
       if (!prev?.items) return prev;
       return {
@@ -305,7 +309,7 @@ export default function OrderPage() {
       // refresh from API
       const refreshed = await fetchActiveOrderByTable(table._id);
 
-      // ✅ IMPORTANT: do NOT set activeOrder to null if API glitches
+      //   IMPORTANT: do NOT set activeOrder to null if API glitches
       if (refreshed) {
         setActiveOrder(refreshed);
         // keep nickname in sync if backend returns it
@@ -344,9 +348,12 @@ export default function OrderPage() {
   }
 
   /* ---------- RENDER ---------- */
-
+ 
   return (
     <div className="space-y-4 pb-24">
+      <button className= "inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 active:scale-[0.98] transition" onClick={() => i18n.changeLanguage("it")}>🇮🇹</button>
+      &nbsp;&nbsp;
+      <button className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 active:scale-[0.98] transition" onClick={() => i18n.changeLanguage("en")}>🇬🇧</button>
       <TableMap
         tables={waiterTables}
         layout={{
@@ -362,7 +369,7 @@ export default function OrderPage() {
 
       {!table && (
         <div className="py-10 text-center text-slate-400">
-          Select a table to start ordering
+          {t("tables.selectTable")}
         </div>
       )}
 
@@ -370,7 +377,7 @@ export default function OrderPage() {
         <>
           <div className="flex items-center justify-between">
             <div className="font-semibold">
-              {activeOrder ? "🟢 Active Table" : "🟡 New Table"}
+              {activeOrder ? "🟢 "+t("tables.activeTable") : "🟡 "+t("tables.newTable") }
             </div>
 
             {activeOrder && (
@@ -378,7 +385,7 @@ export default function OrderPage() {
                 onClick={closeTableHandler}
                 className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white"
               >
-                🔒 Close Table
+                🔒 {t("tables.close_table")}
               </button>
             )}
           </div>
@@ -386,13 +393,13 @@ export default function OrderPage() {
           {/* Order nickname */}
           <div className="rounded-xl border bg-white p-3">
             <label className="block text-xs font-medium text-slate-500 mb-1">
-              Order name (optional)
+              {t("order.orderName")}  
             </label>
 
             <input
               value={orderName}
               onChange={(e) => setOrderName(e.target.value)}
-              placeholder="e.g. Nick’s table, Birthday, Family"
+              placeholder={t("order.placeholder")}  
               className="w-full rounded-lg border px-3 py-2 text-sm"
               onBlur={async () => {
                 // update only if there is an existing active order
@@ -449,7 +456,7 @@ export default function OrderPage() {
           {step === "products" && (
             <>
               <button onClick={() => setStep("category")} className="text-sm">
-                ← Back
+                {t("order.back")}  
               </button>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

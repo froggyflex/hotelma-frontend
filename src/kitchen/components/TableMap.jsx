@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 /**
  * TableMap
@@ -15,6 +16,10 @@ const DEFAULT_LAYOUT = {
   doors: [],
 };
 const isMobile = window.innerWidth < 640; // Tailwind sm breakpoint
+
+
+
+
 // ---------- DOOR ----------
 function DoorMark({ x, y, orientation }) {
   const len = 60;
@@ -133,7 +138,7 @@ export default function TableMap({
   openTableIds=[]
 }) {
   const effectiveLayout = layout ?? DEFAULT_LAYOUT;
-
+  const { t } = useTranslation();
   const sortedTables = useMemo(() => {
     return [...tables].sort((a, b) =>
       String(a.name).localeCompare(String(b.name))
@@ -143,7 +148,7 @@ export default function TableMap({
   if (!sortedTables.length) {
     return (
       <div className="rounded-2xl border bg-white p-4 shadow-sm text-sm text-slate-500">
-        No tables available
+        {t("tables.notables")}
       </div>
     );
   }
@@ -152,9 +157,9 @@ export default function TableMap({
   return (
     <div className="rounded-2xl border bg-white p-3 shadow-sm">
       <div className="flex items-center justify-between px-2 pb-2">
-        <div className="text-sm font-semibold text-slate-700">Table Map</div>
+        <div className="text-sm font-semibold text-slate-700"> {t("tablemap.map")}</div>
         <div className="text-xs text-slate-500">
-          {admin ? "Drag tables to reposition" : "Tap a table to open order"}
+          {admin ? "Drag tables to reposition" : t("tablemap.tapToOrder")}
         </div>
       </div>
 
@@ -216,7 +221,7 @@ export default function TableMap({
       </div>
 
       <div className="px-2 pt-2 text-xs text-slate-500">
-        Table labels are temporary (T1..). Order nicknames remain per-order.
+        {t("tablemap.legend")}
       </div>
     </div>
   );

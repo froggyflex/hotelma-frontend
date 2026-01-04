@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+
+
 export default function ActiveOrderPanel({
   order,
   products,
@@ -11,13 +14,18 @@ export default function ActiveOrderPanel({
 }) {
   const sentItems = order?.items || [];
   const hasOrder = !!order;
+  const { t } = useTranslation();
+  
+
 
   const productMap = new Map(
     products.map(p => [String(p._id), p])
   );
 
   return (
+    
     <div className="rounded-2xl border bg-white p-4 space-y-4">
+
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
@@ -27,7 +35,7 @@ export default function ActiveOrderPanel({
 
           {hasOrder && (
             <div className="text-xs text-slate-500">
-              Opened at {new Date(order.createdAt).toLocaleTimeString()}
+              {t("tables.openedAt")} {new Date(order.createdAt).toLocaleTimeString()}
             </div>
           )}
         </div>
@@ -37,7 +45,7 @@ export default function ActiveOrderPanel({
             onClick={onCloseTable}
             className="rounded-lg bg-red-600 px-3 py-1 text-xs font-medium text-white"
           >
-            Close table
+            {t("tables.close_table")}
           </button>
         )}
       </div>
@@ -45,11 +53,11 @@ export default function ActiveOrderPanel({
       {/* SENT ITEMS */}
       <div className="space-y-2">
         <div className="text-xs font-semibold uppercase text-slate-500">
-          Sent to kitchen
+           {t("order.sendToKitchen")}
         </div>
-
+ 
         {sentItems.length === 0 && (
-          <div className="text-sm text-slate-400">No items sent yet</div>
+          <div className="text-sm text-slate-400">{t("order.noItemSent")}</div>
         )}
 
             {sentItems.map(item => {
@@ -88,7 +96,7 @@ export default function ActiveOrderPanel({
                     onClick={() => onMarkDelivered(item._id)}
                     className="text-xs text-emerald-600 hover:underline"
                     >
-                    Mark delivered
+                    {t("order.markDelivered")}
                     </button>
                 )}
                 </div>
@@ -100,72 +108,82 @@ export default function ActiveOrderPanel({
       {/* DRAFT ITEMS */}
       <div className="space-y-2">
         <div className="text-xs font-semibold uppercase text-slate-500">
-          New items (not sent)
+           {t("order.newItemsNotSent")}
         </div>
-
+            
         {draftItems.length === 0 && (
-          <div className="text-sm text-slate-400">No new items</div>
+          <div className="text-sm text-slate-400">{t("order.noItems")}</div>
         )}
 
-        {draftItems.map(item => (
-          <div
-            key={item.id}
-            className="rounded-lg border border-dashed px-3 py-2 text-sm space-y-1"
-          >
-            <div className="flex items-center justify-between">
-              <div className="font-medium">
-                {item.name}
+        {draftItems.map(item => {
+
+            const product = productMap.get(String(item.productId));
+            const category = product?.category || "Other";
+          return(
+
+              <div
+                key={item.id}
+                className="rounded-lg border border-dashed px-3 py-2 text-sm space-y-1"
+              >
+                  <div className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+                    {category}
+                  </div>
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">
+                    {item.name}
+                  </div>
+
+                  {/* ACTIONS */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        onUpdateDraftItem(item.id, { qty: Math.max(1, item.qty - 1) })
+                      }
+                      className="px-2 rounded border"
+                    >
+                      −
+                    </button>
+
+                    <span className="min-w-[1.5rem] text-center">
+                      {item.qty}
+                    </span>
+
+                    <button
+                      onClick={() =>
+                        onUpdateDraftItem(item.id, { qty: item.qty + 1 })
+                      }
+                      className="px-2 rounded border"
+                    >
+                      +
+                    </button>
+
+                    <button
+                      onClick={() => onEditDraftItem(item)}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      {t("order.edit")}
+                    </button>
+
+                    <button
+                      onClick={() => onRemoveDraftItem(item.id)}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      {t("order.remove")}
+                    </button>
+                  </div>
+                </div>
+
+                {(item.notes?.length > 0 || item.customNote) && (
+                  <div className="text-xs text-slate-500">
+                    {[...(item.notes || []), item.customNote]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </div>
+                )}
               </div>
+          )
 
-              {/* ACTIONS */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() =>
-                    onUpdateDraftItem(item.id, { qty: Math.max(1, item.qty - 1) })
-                  }
-                  className="px-2 rounded border"
-                >
-                  −
-                </button>
-
-                <span className="min-w-[1.5rem] text-center">
-                  {item.qty}
-                </span>
-
-                <button
-                  onClick={() =>
-                    onUpdateDraftItem(item.id, { qty: item.qty + 1 })
-                  }
-                  className="px-2 rounded border"
-                >
-                  +
-                </button>
-
-                <button
-                  onClick={() => onEditDraftItem(item)}
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  Edit
-                </button>
-
-                <button
-                  onClick={() => onRemoveDraftItem(item.id)}
-                  className="text-xs text-red-600 hover:underline"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-
-            {(item.notes?.length > 0 || item.customNote) && (
-              <div className="text-xs text-slate-500">
-                {[...(item.notes || []), item.customNote]
-                  .filter(Boolean)
-                  .join(", ")}
-              </div>
-            )}
-          </div>
-        ))}
+        })}
       </div>
 
       {/* SEND BUTTON */}
@@ -179,8 +197,8 @@ export default function ActiveOrderPanel({
               : "bg-slate-300 cursor-not-allowed"
           }`}
         >
-          Send {draftItems.length || ""} new item
-          {draftItems.length === 1 ? "" : "s"}
+            {t("order.newItem")}
+           
         </button>
       </div>
     </div>

@@ -1,0 +1,59 @@
+{
+  "common": {
+    "save": "Salva",
+    "close": "Chiudi",
+    "loading": "Caricamento…"
+  },
+
+  "tables": {
+    "newTable": "Nuovo tavolo",
+    "table": "Tavolo",
+    "open": "Aperto",
+    "closed": "Chiuso",
+    "close_table":"Chiudi Tavolo",
+    "activeTable":"Tavolo aperto",
+    "selectTable":"Seleziona un tavolo per iniziare",
+    "openedAt":"Aperto alle "
+  },
+
+  "order": {
+    "newOrder": "Nuovo ordine",
+    "activeOrder": "Ordine attivo",
+    "markDelivered": "Segna come servito",
+    "addItems": "Aggiungi articoli",
+    "sendToKitchen": "Invia in cucina",
+    "orderNote": "Nota ordine",
+    "orderName": "Nome tavolo (opzionale)",
+    "noItemSent":"Nessun articolo inviato",
+    "newItemsNotSent":"Nuovi articoli (non inviati)",
+    "noItems":"Nessun articolo nuovo",
+    "edit":"Modifica",
+    "remove":"Rimuovi",
+    "send":"Invia",
+    "newItem":"Invia in cucina",
+    "placeholder":"Es. Mario rossi, compleanno, evento",
+    "back":"← Indietro"
+  },
+
+  "products": {
+    "category": "Categoria",
+    "notes": "Modifiche",
+    "allowCustomNote": "Consenti nota personalizzata"
+  },
+
+  "tablemap": {
+    "map": "Mappa tavoli",
+    "tapToOrder":"Selezionare un tavolo per cominciare",
+    "notables": "Nessuna configurazione disponibile",
+    "legend": "Le lable sono dei placeholder (T1...). Assegnare un nome ad ogni ordine per chiarezza"
+  },
+  
+  "modifierModal": {
+    "customNote":"Aggiungi nota",
+    "modifiers": "Dettagli",
+    "skip": "Annulla",
+    "add": "Aggiungi"
+
+    
+  }
+}

@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+
 
 export default function ModifierModal({
   open,
@@ -11,7 +13,7 @@ export default function ModifierModal({
   // ✅ Hooks ALWAYS run
   const [selectedNotes, setSelectedNotes] = useState([]);
   const [customNote, setCustomNote] = useState("");
-
+  const { t } = useTranslation();
   // ✅ Sync when item changes
   useEffect(() => {
     if (!item) return;
@@ -30,6 +32,7 @@ export default function ModifierModal({
     );
   }
 
+  
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
       <div className="w-full max-w-md rounded-t-2xl bg-white p-4 space-y-4">
@@ -42,7 +45,7 @@ export default function ModifierModal({
         {noteTemplates.length > 0 && (
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-600">
-              Modifiers
+               {t("modifierModal.modifiers")}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -72,7 +75,7 @@ export default function ModifierModal({
         {allowCustomNote && (
           <div className="space-y-1">
             <label className="text-sm text-slate-600">
-              Custom note
+              {t("modifierModal.customNote")}
             </label>
             <input
               value={customNote}
@@ -89,7 +92,7 @@ export default function ModifierModal({
             onClick={onSkip}
             className="flex-1 rounded-xl border py-2 text-sm"
           >
-            Skip
+            {t("modifierModal.skip")}
           </button>
 
           <button
@@ -101,7 +104,7 @@ export default function ModifierModal({
             }
             className="flex-1 rounded-xl bg-slate-900 py-2 text-sm text-white"
           >
-            Add
+            {t("modifierModal.add")}
           </button>
         </div>
       </div>

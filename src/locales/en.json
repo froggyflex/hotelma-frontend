@@ -1,0 +1,59 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "loading": "Loading…"
+  },
+
+  "tables": {
+    "newTable": "New table",
+    "table": "Table",
+    "open": "Open",
+    "closed": "Closed",
+    "close_table":"Close table",
+    "activeTable":"Active table",
+    "selectTable":"Select a table to start ordering",
+    "openedAt":"Opened at "
+  },
+
+  "order": {
+    "newOrder": "New order",
+    "activeOrder": "Active order",
+    "markDelivered": "Mark delivered",
+    "addItems": "Add items",
+    "sendToKitchen": "Send to kitchen",
+    "orderName": "Order name (optional)",
+    "noItemSent":"No items sent yet",
+    "newItemsNotSent":"New items (not sent)",
+     "noItems":"No new items",
+     "edit":"Edit",
+     "remove":"Remove",
+     "send":"Send",
+     "newItem":"Send to kitchen",
+     "placeholder":"e.g. Nick’s table, Birthday, Family",
+     "back":"← Back"
+    },
+
+  "products": {
+    "category": "Category",
+    "notes": "Modifiers",
+    "allowCustomNote": "Allow custom note"
+  },
+
+  "tablemap": {
+    "map": "Table map",
+    "tapToOrder":"Tap a table to open order",
+    "notables": "No tables available",
+    "legend": "Table labels are temporary (T1..). Order nicknames remain per-order."
+  },  
+  
+  "modifierModal": {
+    "customNote":"Custom note",
+    "modifiers": "Modifiers",
+    "skip": "Cancel",
+    "add": "Add"
+
+    
+  }
+}
