@@ -10,6 +10,7 @@ import InvoicesMain from "./pages/Invoices";
 import CreateInvoice from "./pages/CreateInvoice";
 import SettingsPage from "./pages/Settings";
 import Login from "./pages/Login";
+import BookingExports from "./pages/Exports";
 
 import HubPage from "./hub/HubPage";
 
@@ -80,6 +81,7 @@ function AppLayout() {
           <NavLink to="/invoices" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
             AADE
           </NavLink>
+          <NavLink className={navLinkClass} to="/exports/bookings">Booking Exports</NavLink>
           <NavLink to="/settings" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
             Settings
           </NavLink>
@@ -122,6 +124,7 @@ function AppLayout() {
             <Route path="/housekeeping" element={<Housekeeping />} />
             <Route path="/invoices" element={<InvoicesMain />} />
             <Route path="/invoices/new" element={<CreateInvoice />} />
+            <Route path="/exports/bookings" element={<BookingExports />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
