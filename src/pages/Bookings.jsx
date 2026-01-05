@@ -850,7 +850,7 @@ export default function Bookings() {
               : "text-gray-500"
           }`}
         >
-          Calendar View
+          Calendar View - Drag and Drop
         </button>
 
         {/* <button
