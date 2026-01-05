@@ -8,14 +8,8 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 
-
 const API = import.meta.env.VITE_API_URL;
 const PAGE_SIZE = 15;
-
-/* -----------------------
-   ISOLATED CHECKBOX
------------------------ */
- 
 
 export default function BookingExports() {
   const [bookings, setBookings] = useState([]);
@@ -51,12 +45,12 @@ export default function BookingExports() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
 
-  /* RESET SELECTION */
+  /* RESET SELECTION ON PAGE/FILTER CHANGE */
   useEffect(() => {
     setSelectedIds([]);
   }, [search, fromDate, toDate, page]);
 
-  /* SELECTION LOGIC */
+  /* SELECTION */
   const toggleSelect = (id) => {
     setSelectedIds(prev =>
       prev.includes(id)
@@ -65,14 +59,8 @@ export default function BookingExports() {
     );
   };
 
-  const selectPage = () => {
-    setSelectedIds(paginated.map(b => b.id));
-  };
-
-  const selectAllFiltered = () => {
-    setSelectedIds(filtered.map(b => b.id));
-  };
-
+  const selectPage = () => setSelectedIds(paginated.map(b => b.id));
+  const selectAllFiltered = () => setSelectedIds(filtered.map(b => b.id));
   const clearSelection = () => setSelectedIds([]);
 
   const pageFullySelected =
@@ -80,21 +68,23 @@ export default function BookingExports() {
     paginated.every(b => selectedIds.includes(b.id));
 
   /* EXPORTS */
-  const exportCSV = () => {
+  const exportCSV = (bookingIds) => {
+    if (!bookingIds.length) return;
     fetch(`${API}/api/exports/bookings/csv`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingIds: selectedIds })
+      body: JSON.stringify({ bookingIds })
     })
       .then(res => res.blob())
       .then(blob => download(blob, "bookings.csv"));
   };
 
-  const exportPDFMerged = () => {
+  const exportPDF = (bookingIds) => {
+    if (!bookingIds.length) return;
     fetch(`${API}/api/exports/bookings/pdf`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingIds: selectedIds })
+      body: JSON.stringify({ bookingIds })
     })
       .then(res => res.blob())
       .then(blob => download(blob, "bookings.pdf"));
@@ -108,17 +98,7 @@ export default function BookingExports() {
     a.click();
     window.URL.revokeObjectURL(url);
   };
-    const exportPDF = (bookingIds) => {
-     
-    fetch(`${API}/api/exports/bookings/pdf`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingIds })
-    })
-        .then(res => res.blob())
-        .then(blob => download(blob, "bookings.pdf"))
-        .catch(err => console.error("PDF export failed", err));
-    };
+
   return (
     <div className="space-y-6">
 
@@ -155,74 +135,52 @@ export default function BookingExports() {
           />
         </div>
       </div>
-        {/* ACTION BAR */}
-        <div className="sticky top-0 z-10 bg-white border-y shadow-sm">
+
+      {/* ACTION BAR */}
+      <div className="sticky top-0 z-10 bg-white border-y shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <span className="text-sm text-slate-600">
+            {selectedIds.length
+              ? `${selectedIds.length} selected`
+              : `${filtered.length} bookings`}
+          </span>
 
-            {/* LEFT: STATUS */}
-            <span className="text-sm text-slate-600">
-            {selectedIds.length > 0
-                ? `${selectedIds.length} booking${selectedIds.length > 1 ? "s" : ""} selected`
-                : `${filtered.length} bookings`}
-            </span>
-
-            {/* RIGHT: ACTIONS */}
-            <div className="flex flex-wrap items-center gap-2">
-
-            {/* SELECTION GROUP */}
+          <div className="flex flex-wrap gap-2">
             <div className="flex gap-1 border rounded-lg p-1 bg-slate-50">
-                <button
-                onClick={selectPage}
-                className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white"
-                title="Select current page"
-                >
+              <button onClick={selectPage} className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white">
                 <CheckSquare size={16} />
-                Page
-                </button>
-
-                <button
-                onClick={selectAllFiltered}
-                className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white"
-                title="Select all filtered bookings"
-                >
+                <span className="hidden sm:inline">Page</span>
+              </button>
+              <button onClick={selectAllFiltered} className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white">
                 <ListChecks size={16} />
-                All
-                </button>
-
-                <button
-                onClick={clearSelection}
-                className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white text-slate-500"
-                title="Clear selection"
-                >
+                <span className="hidden sm:inline">All</span>
+              </button>
+              <button onClick={clearSelection} className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white text-slate-500">
                 <X size={16} />
-                </button>
+              </button>
             </div>
 
-            {/* EXPORT GROUP */}
             <div className="flex gap-1 border rounded-lg p-1 bg-slate-50">
-                <button
+              <button
                 disabled={!selectedIds.length}
-                onClick={exportCSV}
+                onClick={() => exportCSV(selectedIds)}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-white hover:bg-slate-100 disabled:opacity-40"
-                >
+              >
                 <FileSpreadsheet size={16} />
-                CSV
-                </button>
-
-                <button
+                <span className="hidden sm:inline">CSV</span>
+              </button>
+              <button
                 disabled={!selectedIds.length}
-                onClick={exportPDFMerged}
+                onClick={() => exportPDF(selectedIds)}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
-                >
+              >
                 <FileText size={16} />
-                PDF
-                </button>
+                <span className="hidden sm:inline">PDF</span>
+              </button>
             </div>
-
-            </div>
+          </div>
         </div>
-        </div>
-
+      </div>
 
       {/* TABLE */}
       <div className="bg-white rounded-xl border overflow-x-auto">
@@ -231,18 +189,15 @@ export default function BookingExports() {
             <tr>
               <th className="px-3 py-2">
                 <input
-                type="checkbox"
-                
-                checked={pageFullySelected}
-                onChange={e =>
-                    e.target.checked ? selectPage() : clearSelection()
-                }
-                className="appearance-auto accent-blue-600"
+                  type="checkbox"
+                  checked={pageFullySelected}
+                  onChange={e => e.target.checked ? selectPage() : clearSelection()}
+                  className="w-5 h-5 accent-blue-600"
                 />
               </th>
               <th className="px-3 py-2 text-left">Guest</th>
-              <th className="px-3 py-2">Check-in</th>
-              <th className="px-3 py-2">Check-out</th>
+              <th className="px-3 py-2 hidden sm:table-cell">Check-in</th>
+              <th className="px-3 py-2 hidden sm:table-cell">Check-out</th>
               <th className="px-3 py-2">PDF</th>
             </tr>
           </thead>
@@ -252,41 +207,44 @@ export default function BookingExports() {
               return (
                 <tr
                   key={b.id}
-                  className={`border-t ${
-                    selected
-                      ? "bg-blue-50"
-                      : "odd:bg-white even:bg-slate-50"
-                  }`}
+                  className={`border-t ${selected ? "bg-blue-50" : "odd:bg-white even:bg-slate-50"}`}
                 >
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-3">
                     <input
-                    type="checkbox"
-                    
-                    checked={selected}
-                    onChange={(e) => {
+                      type="checkbox"
+                      checked={selected}
+                      onChange={e => {
                         e.stopPropagation();
                         toggleSelect(b.id);
-                    }}
-                    className="appearance-auto accent-blue-600"
+                      }}
+                      className="w-5 h-5 accent-blue-600"
                     />
                   </td>
-                  <td className="px-3 py-2 font-medium">
+
+                  <td className="px-3 py-3 font-medium">
                     {b.guestName}
+                    <div className="text-xs text-slate-500 sm:hidden">
+                      {b.checkIn} – {b.checkOut}
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-600">
+
+                  <td className="px-3 py-3 hidden sm:table-cell text-xs text-slate-600">
                     {b.checkIn}
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-600">
+                  <td className="px-3 py-3 hidden sm:table-cell text-xs text-slate-600">
                     {b.checkOut}
                   </td>
-                  <td className="px-3 py-2">
+
+                  <td className="px-3 py-3">
                     <button
-                       
-                       
-                      onClick={(e) => {e.stopPropagation(); exportPDF(b.id) }}
-                      className="text-blue-600 underline"
+                      onClick={e => {
+                        e.stopPropagation();
+                        exportPDF([b.id]);
+                      }}
+                      className="flex items-center gap-1 text-blue-600 hover:underline"
                     >
-                      PDF
+                      <FileText size={16} />
+                      <span className="hidden sm:inline">PDF</span>
                     </button>
                   </td>
                 </tr>
@@ -298,7 +256,7 @@ export default function BookingExports() {
 
       {/* PAGINATION */}
       {totalPages > 1 && (
-        <div className="flex justify-between items-center text-sm text-slate-600">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-slate-600">
           <span>
             Showing {(page - 1) * PAGE_SIZE + 1}–
             {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
@@ -322,7 +280,6 @@ export default function BookingExports() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

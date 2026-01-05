@@ -43,7 +43,8 @@ import {
 const API = import.meta.env.VITE_API_URL;
 const URL = `${API}/bookings`;
 const URLR = `${API}/rooms`;
-
+ 
+const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
 function DraggableBooking({
   booking,
@@ -79,6 +80,7 @@ const ROW_HEIGHT = 60;
 /*******************************
  * RESPONSIVE MONTHLY CALENDAR
  *******************************/
+
 function MonthlyCalendar({
   monthDate,
   rooms,
@@ -367,6 +369,58 @@ function MonthlyCalendar({
   );
 
 }
+
+function MobileAgenda({ bookings, monthDate, onEditBooking }) {
+  const monthStart = startOfMonth(monthDate);
+  const monthEnd = endOfMonth(monthDate);
+
+  const visible = bookings
+    .filter(b => {
+      const ci = parseISO(b.checkIn);
+      const co = parseISO(b.checkOut);
+      return !(co < monthStart || ci > monthEnd);
+    })
+    .sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+
+  return (
+    <div className="space-y-3">
+       {}
+      {visible.map(b => (
+        <button
+          key={b.id}
+          onClick={() => onEditBooking(b)}
+          className="w-full text-left p-4 bg-white rounded-xl border shadow-sm
+                     flex justify-between items-center"
+        >
+          <div>
+            <div className="font-semibold">{b.guestName}</div>
+            <div className="text-sm text-slate-600">
+              Room {b.room}
+            </div>
+            <div className="text-xs text-slate-500">
+              {b.checkIn} → {b.checkOut}
+            </div>
+          </div>
+
+          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+            {differenceInCalendarDays(
+              new Date(b.checkOut),
+              new Date(b.checkIn)
+            )} nights
+          </span>
+        </button>
+      ))}
+
+      {visible.length === 0 && (
+        <div className="text-center text-slate-500 text-sm py-8">
+          No bookings this month
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 /* -------------------------------------------------------
    MAIN COMPONENT
 ------------------------------------------------------- */
@@ -678,6 +732,7 @@ export default function Bookings() {
         />
         <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl shadow-md">
           <h3 className="font-semibold mb-2">📅 Monthly Overview</h3>
+
           <div className="mb-6 rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
@@ -685,68 +740,78 @@ export default function Bookings() {
                 📅 Booking Timeline
               </h3>
               <span className="text-xs text-slate-500">
-                Quick jump by year & month
+                 Quick jump by year & month
               </span>
             </div>
 
-            {/* Year selector */}
-            <div className="flex gap-2 mb-3 flex-wrap">
-              {years.map((year) => (
-                <button
-                  key={year}
-                  onClick={() =>
-                    setMonthDate(new Date(year, monthDate.getMonth(), 1))
-                  }
-                  className={`px-3 py-1 rounded-md text-sm border transition
-                    ${
-                      year === monthDate.getFullYear()
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100"
-                    }`}
-                >
-                  {year}
-                </button>
-              ))}
-            </div>
-
-            {/* Month strip */}
-            <div className="grid grid-cols-12 gap-1">
-              {Array.from({ length: 12 }).map((_, m) => {
-                const year = monthDate.getFullYear();
-                const count = bookingsByYearMonth[year]?.[m] || 0;
-                const isActive = m === monthDate.getMonth();
-
-                return (
+             
+              {/* Year selector */}
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {years.map((year) => (
                   <button
-                    key={m}
-                    onClick={() => setMonthDate(new Date(year, m, 1))}
-                    title={`${format(new Date(year, m, 1), "MMMM yyyy")} — ${count} bookings`}
-                    className={`relative rounded-md px-1 py-2 text-xs border transition
-                      ${getDensityClass(count)}
-                      ${isActive ? "ring-2 ring-blue-500" : "border-slate-300"}
-                    `}
+                    key={year}
+                    onClick={() =>
+                      setMonthDate(new Date(year, monthDate.getMonth(), 1))
+                    }
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap 
+                      ${
+                        year === monthDate.getFullYear()
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100"
+                      }`}
+                      style={{"border":"2px solid lightblue"}}
                   >
-                    {format(new Date(2000, m, 1), "MMM")}
-
-                    {count > 0 && (
-                      <span className="absolute -top-1 -right-1 text-[10px] px-1 rounded-full bg-slate-800 text-white">
-                        {count}
-                      </span>
-                    )}
+                    {year}
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </div>
 
+              {/* Month strip */}
+              <div className=" ">
+                <div className="flex gap-2 overflow-x-auto sm:grid sm:grid-cols-12 sm:gap-2 pb-2" style={{"padding":'10px'}}>
+                  {Array.from({ length: 12 }).map((_, m) => {
+                    const year = monthDate.getFullYear();
+                    const count = bookingsByYearMonth[year]?.[m] || 0;
+                    const isActive = m === monthDate.getMonth();
+
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => setMonthDate(new Date(year, m, 1))}
+                        title={`${format(new Date(year, m, 1), "MMMM yyyy")} — ${count} bookings`}
+                        className={`relative min-w-[64px] sm:min-w-0
+                                      px-3 py-2 rounded-lg text-sm font-medium
+                                      flex items-center justify-center
+                          ${getDensityClass(count)}
+                          ${isActive ? "ring-2 ring-blue-500" : "border-slate-300"}
+                        `}
+                      >
+                        {format(new Date(2000, m, 1), "MMM")}
+
+                        {count > 0 && (
+                          <span className="absolute -top-1 -right-1
+                                            w-6 h-6 rounded-full
+                                            bg-black text-white text-xs
+                                            flex items-center justify-center
+                          ">
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+             
             {/* Footer hint */}
-            <div className="mt-3 text-xs text-slate-500">
-              Highlight intensity reflects booking volume
-            </div>
+            <p className="mt-3 text-xs text-slate-500 hidden sm:block">
+            Highlight intensity reflects booking volume
+            </p>
           </div>
         </div>
 
         </div>    
-
+         
 
         {/* Results Dropdown */}
         {searchResults.length > 0 && (
@@ -843,29 +908,37 @@ export default function Bookings() {
           >
             + Add Booking
           </button>
-            <MonthlyCalendar
-              rooms={rooms}
-              bookings={bookings}
-              monthDate={monthDate}
-              setMonthDate={setMonthDate}
-              onSetMonth={handleSetMonth}
-              onMoveBooking={handleMoveBooking}
-              onPrevMonth={() =>
-                setMonthDate(
-                  new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1)
-                )
-              }
-              
-              onNextMonth={() =>
-                setMonthDate(
-                  new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1)
-                )
-              }
-              onToday={() => setMonthDate(new Date())}
-              onEditBooking={(b) => setEditingBooking(b)}
-             
-              windowStart={weekStart}
-            />
+            {isMobile ? (
+              <MobileAgenda
+                bookings={bookings}
+                monthDate={monthDate}
+                onEditBooking={setEditingBooking}
+              />
+            ) : (
+                    <MonthlyCalendar
+                      rooms={rooms}
+                      bookings={bookings}
+                      monthDate={monthDate}
+                      setMonthDate={setMonthDate}
+                      onSetMonth={handleSetMonth}
+                      onMoveBooking={handleMoveBooking}
+                      onPrevMonth={() =>
+                        setMonthDate(
+                          new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1)
+                        )
+                      }
+                      
+                      onNextMonth={() =>
+                        setMonthDate(
+                          new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1)
+                        )
+                      }
+                      onToday={() => setMonthDate(new Date())}
+                      onEditBooking={(b) => setEditingBooking(b)}
+                    
+                      windowStart={weekStart}
+                    />
+            )}
           </div>
         )}
 
