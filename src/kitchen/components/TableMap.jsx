@@ -108,8 +108,8 @@ function TableNode({
         height={size}
         rx={16}
         ry={16}
-        fill={isOpen ? "#a7f3d0" : fill}
-        stroke={isOpen ? "#059669" : stroke}
+        fill={  fill}
+        stroke={ stroke}
         strokeWidth="3"
       />
       <text

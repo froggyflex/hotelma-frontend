@@ -111,10 +111,10 @@ export default function OrderPage() {
       _pos: tableMap.tables.find((p) => String(p.tableId) === String(t._id)),
     }));
   }, [tables, tableMap]);
-
+ 
   const pendingItems = activeOrder?.items?.filter(
     i => i.status === "new"
-  );
+  )?? [];
 
   /* ---------- LOAD BASE DATA ---------- */
 
@@ -407,6 +407,7 @@ async function sendNewItems() {
       setDraftItems([]);
       setOrderName("");
       setStep("category");
+      
     } catch (e) {
       console.error(e);
       alert("Failed to close table");
