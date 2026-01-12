@@ -8,6 +8,7 @@ import {
   fetchActiveOrderByTable,
   appendItemsToOrder,
   markItemDelivered,
+  markItemPrinted,
   closeOrder,
   createKitchenOrder,
   updateOrderName,  
