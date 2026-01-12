@@ -67,11 +67,18 @@ export async function addItemsToOrder(orderId, items) {
 }
 
 export async function markOrderPrinted(orderId) {
-  await fetch(
+  const res = await fetch(
     `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/print`,
     { method: "POST" }
   );
+
+  if (!res.ok) {
+    throw new Error("Failed to mark order as printed");
+  }
+
+  return res.json();
 }
+
 
 export async function markItemDelivered(itemId) {
   const res = await fetch(

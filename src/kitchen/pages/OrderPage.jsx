@@ -218,10 +218,7 @@ export default function OrderPage() {
       window.Android.print(printPayload);
 
       // ✅ success → mark as sent
-      await markItemsSent(
-        activeOrder._id,
-        pendingItems.map(i => i._id)
-      );
+      await markOrderPrinted(activeOrder._id);
 
       const refreshed = await fetchActiveOrderByTable(table._id);
       setActiveOrder(refreshed);
@@ -333,10 +330,7 @@ async function sendNewItems() {
       window.Android.print(printPayload);
 
       // 4️⃣ PRINT SUCCESS → mark items as sent
-      await markItemsSent(
-        order._id,
-        itemsToSend.map(i => i._id)
-      );
+    await markOrderPrinted(activeOrder._id);
 
     } catch (printError) {
       console.warn("Print failed, items remain pending", printError);
