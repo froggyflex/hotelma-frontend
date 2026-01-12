@@ -4,6 +4,9 @@ export function buildThermalPrint(
   { table, orderName, tableNote = null, items = [], createdAt },
   products = []
 ) {
+  const BIG_ON  = "\x1D\x21\x11";
+  const BIG_OFF = "\x1D\x21\x00";
+
   const line = "--------------------------------";
 
   const time = new Date(createdAt || Date.now()).toLocaleTimeString([], {
@@ -28,7 +31,7 @@ export function buildThermalPrint(
   }, {});
 
   let output = [];
-
+  output.push(BIG_ON);
   output.push(line);
 
   // ✅ REAL TABLE NAME
@@ -66,6 +69,6 @@ export function buildThermalPrint(
   }
 
   output.push(line);
-
+  output.push(BIG_OFF);
   return output.join("\n");
 }
