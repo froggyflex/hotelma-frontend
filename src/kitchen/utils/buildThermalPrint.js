@@ -7,7 +7,7 @@ export function buildThermalPrint(
   const BIG_ON  = "\x1D\x21\x11";
   const BIG_OFF = "\x1D\x21\x00";
 
-  const line = "--------------------------------";
+  const line = "------------------------";
 
   const time = new Date(createdAt || Date.now()).toLocaleTimeString([], {
     hour: "2-digit",
