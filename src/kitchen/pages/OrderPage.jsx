@@ -291,7 +291,7 @@ async function sendNewItems() {
   try {
     let order;
 
-    // 1️⃣ SAVE FIRST (ALWAYS)
+    // 1️⃣ SAVE FIRST (SOURCE OF TRUTH)
     if (!activeOrder) {
       order = await createKitchenOrder({
         table: { id: table._id, name: table.name },
@@ -311,18 +311,22 @@ async function sendNewItems() {
       );
     }
 
-    // 2️⃣ BUILD PRINT PAYLOAD (ONLY WHAT WE JUST SENT)
+    if (!order || !order._id) {
+      throw new Error("Order not created correctly");
+    }
+
+    // 2️⃣ BUILD PRINT PAYLOAD (ONLY NEW ITEMS)
     const printPayload = buildThermalPrint(
       {
         table,
         orderName,
         items: itemsToSend,
-        createdAt: order?.createdAt,
+        createdAt: order.createdAt,
       },
       products
     );
 
-    // 3️⃣ TRY PRINT (DON’T ASSUME SUCCESS)
+    // 3️⃣ TRY PRINT
     try {
       if (!window.Android?.print) {
         throw new Error("Printer not available");
@@ -330,25 +334,25 @@ async function sendNewItems() {
 
       window.Android.print(printPayload);
 
-      // 4️⃣ PRINT SUCCESS → mark items as sent
-    await markOrderPrinted(activeOrder._id);
+      // ✅ SUCCESS → mark printed using *order*, NOT activeOrder
+      await markOrderPrinted(order._id);
 
     } catch (printError) {
       console.warn("Print failed, items remain pending", printError);
-      // ❗ DO NOTHING ELSE
-      // Items remain "new" and will be retried later
+      // ❗ DO NOTHING → items stay `new`
     }
 
-    // 5️⃣ CLEAR DRAFT + REFRESH
+    // 4️⃣ CLEAR DRAFT + REFRESH ACTIVE ORDER
     setDraftItems([]);
     const refreshed = await fetchActiveOrderByTable(table._id);
-    setActiveOrder(refreshed || order || null);
+    setActiveOrder(refreshed || order);
 
   } catch (e) {
     console.error(e);
     alert("Failed to send items");
   }
 }
+
 
   async function markDelivered(itemId) {
     if (!table) return;
