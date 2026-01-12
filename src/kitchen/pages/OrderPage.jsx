@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-
+import { enqueuePrintJob } from "../services/printQueue";
+import { printWithRetry } from "../services/printService";
 import {
   fetchActiveProducts,
   fetchActiveTables,
@@ -13,6 +14,10 @@ import {
   createKitchenOrder,
   updateOrderName,  
 } from "../services/kitchenOrdersApi";
+
+import {
+  printSafely
+} from "../services/printService";
 
 import ModifierModal from "../components/ModifierModal";
 import ActiveOrderPanel from "../components/ActiveOrderPanel";
@@ -198,7 +203,7 @@ export default function OrderPage() {
 
   /* ---------- HELPERS ---------- */
 
-  async function retryPrintPending() {
+  function retryPrintPending() {
     if (!activeOrder || pendingItems.length === 0) return;
 
     const printPayload = buildThermalPrint(
@@ -211,23 +216,29 @@ export default function OrderPage() {
       products
     );
 
-    try {
-      if (!window.Android?.print) {
-        throw new Error("Printer not available");
+    enqueuePrintJob({
+      print: async () => {
+        if (!window.Android?.print) {
+          throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
+        }
+
+        await printWithRetry(printPayload);
+      },
+
+      onSuccess: async () => {
+        await markOrderPrinted(
+          activeOrder._id,
+          pendingItems.map(i => i._id)
+        );
+
+        const refreshed = await fetchActiveOrderByTable(table._id);
+        setActiveOrder(refreshed);
+      },
+
+      onError: () => {
+        alert("Printer not available");
       }
-
-      window.Android.print(printPayload);
-
-      // ✅ success → mark as sent
-      await markOrderPrinted(activeOrder._id);
-
-      const refreshed = await fetchActiveOrderByTable(table._id);
-      setActiveOrder(refreshed);
-
-    } catch (err) {
-      console.error("Retry print failed", err);
-      alert("Printer still not available");
-    }
+    });
   }
 
   function openTable(t) {
@@ -326,26 +337,35 @@ async function sendNewItems() {
       products
     );
 
-    // 3️⃣ TRY PRINT
-    try {
-      if (!window.Android?.print) {
-        throw new Error("Printer not available");
+    // 3️⃣ ENQUEUE PRINT JOB (FIFO)
+    enqueuePrintJob({
+      print: async () => {
+        if (!window.Android?.print) {
+          throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
+        }
+
+        await printWithRetry(printPayload);
+      },
+
+      onSuccess: async () => {
+        // ✅ mark ONLY printed items
+        await markOrderPrinted(
+          order._id,
+          itemsToSend.map(i => i._id)
+        );
+
+        const refreshed = await fetchActiveOrderByTable(table._id);
+        setActiveOrder(refreshed || order);
+      },
+
+      onError: err => {
+        console.warn("Print failed, items remain pending", err);
+        // ❗ do nothing — safe by design
       }
+    });
 
-      window.Android.print(printPayload);
-
-      // ✅ SUCCESS → mark printed using *order*, NOT activeOrder
-      await markOrderPrinted(order._id);
-
-    } catch (printError) {
-      console.warn("Print failed, items remain pending", printError);
-      // ❗ DO NOTHING → items stay `new`
-    }
-
-    // 4️⃣ CLEAR DRAFT + REFRESH ACTIVE ORDER
+    // 4️⃣ CLEAR DRAFT IMMEDIATELY (UX)
     setDraftItems([]);
-    const refreshed = await fetchActiveOrderByTable(table._id);
-    setActiveOrder(refreshed || order);
 
   } catch (e) {
     console.error(e);

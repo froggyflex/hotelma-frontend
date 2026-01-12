@@ -1,3 +1,5 @@
+
+
 export function buildThermalPrint(
   { table, orderName, tableNote = null, items = [], createdAt },
   products = []
@@ -30,12 +32,13 @@ export function buildThermalPrint(
   output.push(line);
 
   // ✅ REAL TABLE NAME
-  output.push(`TABLE: ${table?.name || "-"}`);
+  output.push(`TABLE: ${orderName || table?.name}`);
 
   // ✅ TABLE NICKNAME / ORDER NAME
-  if (orderName) {
-    output.push(`NOTE: ${orderName}`);
-  } else if (tableNote) {
+  // if (orderName) {
+  //   output.push(`NOTE: ${orderName}`);
+  // } else 
+  if (tableNote) {
     output.push(`NOTE: ${tableNote}`);
   }
 
