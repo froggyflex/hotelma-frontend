@@ -112,6 +112,10 @@ export default function OrderPage() {
     }));
   }, [tables, tableMap]);
 
+  const pendingItems = activeOrder?.items?.filter(
+    i => i.status === "new"
+  );
+
   /* ---------- LOAD BASE DATA ---------- */
 
   useEffect(() => {
@@ -193,6 +197,41 @@ export default function OrderPage() {
 
   /* ---------- HELPERS ---------- */
 
+  async function retryPrintPending() {
+    if (!activeOrder || pendingItems.length === 0) return;
+
+    const printPayload = buildThermalPrint(
+      {
+        table,
+        orderName: activeOrder.orderName,
+        items: pendingItems,
+        createdAt: activeOrder.createdAt,
+      },
+      products
+    );
+
+    try {
+      if (!window.Android?.print) {
+        throw new Error("Printer not available");
+      }
+
+      window.Android.print(printPayload);
+
+      // ✅ success → mark as sent
+      await markItemsSent(
+        activeOrder._id,
+        pendingItems.map(i => i._id)
+      );
+
+      const refreshed = await fetchActiveOrderByTable(table._id);
+      setActiveOrder(refreshed);
+
+    } catch (err) {
+      console.error("Retry print failed", err);
+      alert("Printer still not available");
+    }
+  }
+
   function openTable(t) {
     setTable(t);
     setActiveItem(null);
@@ -208,7 +247,7 @@ export default function OrderPage() {
 
   function removeDraftItem(id) {
     setDraftItems((prev) => prev.filter((i) => i.id !== id));
-  }
+  } [];
 
   function addItem(product) {
     if (!table) return;
@@ -245,49 +284,76 @@ export default function OrderPage() {
     });
   }
 
-  async function sendNewItems() {
-    if (!table) return;
-    if (!draftItems || draftItems.length === 0) return;
+async function sendNewItems() {
+  if (!table) return;
+  if (!draftItems || draftItems.length === 0) return;
 
-    const itemsToSend = draftItems;
+  const itemsToSend = draftItems;
 
+  try {
+    let order;
+
+    // 1️⃣ SAVE FIRST (ALWAYS)
+    if (!activeOrder) {
+      order = await createKitchenOrder({
+        table: { id: table._id, name: table.name },
+        orderName,
+        items: itemsToSend.map(i => ({
+          ...i,
+          status: "new",
+        })),
+      });
+    } else {
+      order = await appendItemsToOrder(
+        activeOrder._id,
+        itemsToSend.map(i => ({
+          ...i,
+          status: "new",
+        }))
+      );
+    }
+
+    // 2️⃣ BUILD PRINT PAYLOAD (ONLY WHAT WE JUST SENT)
+    const printPayload = buildThermalPrint(
+      {
+        table,
+        orderName,
+        items: itemsToSend,
+        createdAt: order?.createdAt,
+      },
+      products
+    );
+
+    // 3️⃣ TRY PRINT (DON’T ASSUME SUCCESS)
     try {
-      let order;
-
-      if (!activeOrder) {
-        order = await createKitchenOrder({
-          table: { id: table._id, name: table.name },
-          orderName,
-          items: itemsToSend,
-        });
-      } else {
-        order = await appendItemsToOrder(activeOrder._id, itemsToSend);
+      if (!window.Android?.print) {
+        throw new Error("Printer not available");
       }
 
-      // PRINT exactly what we sent
-      const printPayload = buildThermalPrint(
-        {
-          table,
-          orderName,
-          items: itemsToSend,
-          createdAt: order?.createdAt,
-        },
-        products
+      window.Android.print(printPayload);
+
+      // 4️⃣ PRINT SUCCESS → mark items as sent
+      await markItemsSent(
+        order._id,
+        itemsToSend.map(i => i._id)
       );
 
-      console.log("PRINT ITEMS:", itemsToSend);
-      console.log("PRINT PAYLOAD:\n", printPayload);
-
-      // clear draft + refresh active order from API
-      setDraftItems([]);
-
-      const refreshed = await fetchActiveOrderByTable(table._id);
-      setActiveOrder(refreshed || order || null);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to send items");
+    } catch (printError) {
+      console.warn("Print failed, items remain pending", printError);
+      // ❗ DO NOTHING ELSE
+      // Items remain "new" and will be retried later
     }
+
+    // 5️⃣ CLEAR DRAFT + REFRESH
+    setDraftItems([]);
+    const refreshed = await fetchActiveOrderByTable(table._id);
+    setActiveOrder(refreshed || order || null);
+
+  } catch (e) {
+    console.error(e);
+    alert("Failed to send items");
   }
+}
 
   async function markDelivered(itemId) {
     if (!table) return;
@@ -416,6 +482,21 @@ export default function OrderPage() {
               }}
             />
           </div>
+
+          {pendingItems.length > 0 && (
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+            <div className="text-sm font-medium text-amber-700">
+              ⚠ {pendingItems.length} item(s) pending print
+            </div>
+
+            <button
+              onClick={retryPrintPending}
+              className="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+            >
+              🔁 Retry print
+            </button>
+          </div>
+        )}
 
           {/* Active order panel (must show even when activeOrder is null) */}
           <ActiveOrderPanel

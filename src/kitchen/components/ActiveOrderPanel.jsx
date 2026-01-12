@@ -22,6 +22,13 @@ export default function ActiveOrderPanel({
     products.map(p => [String(p._id), p])
   );
 
+  const pendingItems = sentItems.filter(
+    item => item.status === "new"
+  );
+  const printedItems = sentItems.filter(
+    item => item.status === "sent" || item.status === "delivered"
+  );
+
   return (
     
     <div className="rounded-2xl border bg-white p-4 space-y-4">
@@ -39,16 +46,25 @@ export default function ActiveOrderPanel({
             </div>
           )}
         </div>
-
+ 
         {hasOrder && (
           <button
-            onClick={onCloseTable}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onCloseTable();
+            }}
             className="rounded-lg bg-red-600 px-3 py-1 text-xs font-medium text-white"
           >
             {t("tables.close_table")}
           </button>
         )}
       </div>
+      
+     
+       
+ 
 
       {/* SENT ITEMS */}
       <div className="space-y-2">
