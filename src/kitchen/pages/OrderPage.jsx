@@ -297,8 +297,6 @@ async function sendNewItems() {
   if (!table) return;
   if (!draftItems || draftItems.length === 0) return;
 
-  const itemsToSend = draftItems;
-
   try {
     let order;
 
@@ -307,7 +305,7 @@ async function sendNewItems() {
       order = await createKitchenOrder({
         table: { id: table._id, name: table.name },
         orderName,
-        items: itemsToSend.map(i => ({
+        items: draftItems.map(i => ({
           ...i,
           status: "new",
         })),
@@ -315,7 +313,7 @@ async function sendNewItems() {
     } else {
       order = await appendItemsToOrder(
         activeOrder._id,
-        itemsToSend.map(i => ({
+        draftItems.map(i => ({
           ...i,
           status: "new",
         }))
@@ -326,12 +324,22 @@ async function sendNewItems() {
       throw new Error("Order not created correctly");
     }
 
-    // 2️⃣ BUILD PRINT PAYLOAD (ONLY NEW ITEMS)
+    // 🔑 IMPORTANT: get DB-backed items (WITH _id)
+    const dbItemsToPrint = order.items.filter(
+      item => item.status === "new" && item.printed === false
+    );
+
+    if (dbItemsToPrint.length === 0) {
+      console.warn("No printable DB items found");
+      return;
+    }
+
+    // 2️⃣ BUILD PRINT PAYLOAD (USING DB ITEMS)
     const printPayload = buildThermalPrint(
       {
         table,
         orderName,
-        items: itemsToSend,
+        items: dbItemsToPrint,
         createdAt: order.createdAt,
       },
       products
@@ -348,10 +356,10 @@ async function sendNewItems() {
       },
 
       onSuccess: async () => {
-        // ✅ mark ONLY printed items
+        // ✅ mark ONLY DB items (real IDs)
         await markOrderPrinted(
           order._id,
-          itemsToSend.map(i => i._id)
+          dbItemsToPrint.map(i => i._id)
         );
 
         const refreshed = await fetchActiveOrderByTable(table._id);
@@ -360,11 +368,10 @@ async function sendNewItems() {
 
       onError: err => {
         console.warn("Print failed, items remain pending", err);
-        // ❗ do nothing — safe by design
       }
     });
 
-    // 4️⃣ CLEAR DRAFT IMMEDIATELY (UX)
+    // 4️⃣ CLEAR DRAFT
     setDraftItems([]);
 
   } catch (e) {
@@ -372,6 +379,7 @@ async function sendNewItems() {
     alert("Failed to send items");
   }
 }
+
 
 
   async function markDelivered(itemId) {
