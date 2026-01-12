@@ -119,7 +119,7 @@ export default function OrderPage() {
   }, [tables, tableMap]);
  
   const pendingItems = activeOrder?.items?.filter(
-    i => i.status === "new"
+    item => item.status !== "delivered" && item.printed !== true
   )?? [];
 
   /* ---------- LOAD BASE DATA ---------- */
