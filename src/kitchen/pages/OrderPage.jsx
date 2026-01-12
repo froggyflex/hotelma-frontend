@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { enqueuePrintJob } from "../services/printQueue";
-import { printWithRetry } from "../services/printService";
+
 import {
   fetchActiveProducts,
   fetchActiveTables,
@@ -222,7 +222,7 @@ export default function OrderPage() {
           throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
         }
 
-        await printWithRetry(printPayload);
+        await printSafely(printPayload);
       },
 
       onSuccess: async () => {
@@ -344,7 +344,7 @@ async function sendNewItems() {
           throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
         }
 
-        await printWithRetry(printPayload);
+        await printSafely(printPayload);
       },
 
       onSuccess: async () => {
