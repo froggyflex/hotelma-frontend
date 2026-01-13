@@ -508,26 +508,7 @@ async function sendNewItems() {
   function closeTableHandler() {
     if (!activeOrder) return;
     setShowCloseConfirm(true);
-  }
-
-  // async function closeTableHandler() {
-  //   if (!activeOrder) return;
-  //   if (!activeOrder) return;
-  //   setShowCloseConfirm(true);
-
-  //   try {
-  //     await closeOrder(activeOrder._id);
-  //     setActiveOrder(null);
-  //     setTable(null);
-  //     setDraftItems([]);
-  //     setOrderName("");
-  //     setStep("category");
-      
-  //   } catch (e) {
-  //     console.error(e);
-  //     alert("Failed to close table");
-  //   }
-  // }
+  } 
 
   function showMessage(msg) {
     if (window.AndroidPrinter?.toast) {
@@ -630,22 +611,8 @@ async function sendNewItems() {
             </button>
           </div>
         )}
-
-          {/* Active order panel (must show even when activeOrder is null) */}
-          <ActiveOrderPanel
-            order={activeOrder}
-            products={products}
-            draftItems={draftItems}
-            onSendNewItems={sendNewItems}
-            onMarkDelivered={markDelivered}
-            onCloseTable={closeTableHandler}
-            onUpdateDraftItem={updateDraftItem}
-            onEditDraftItem={editDraftItem}
-            onRemoveDraftItem={removeDraftItem}
-            
-          />
-
-          {/* Category selection */}
+ 
+      {/* Category selection */}
           {step === "category" && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {categories.map((cat) => {
@@ -688,7 +655,20 @@ async function sendNewItems() {
               </div>
             </>
           )}
-
+          
+          {/* Active order panel (must show even when activeOrder is null) */}
+          <ActiveOrderPanel
+            order={activeOrder}
+            products={products}
+            draftItems={draftItems}
+            onSendNewItems={sendNewItems}
+            onMarkDelivered={markDelivered}
+            onCloseTable={closeTableHandler}
+            onUpdateDraftItem={updateDraftItem}
+            onEditDraftItem={editDraftItem}
+            onRemoveDraftItem={removeDraftItem}
+            
+          />
 
           {showCloseConfirm && (
             <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
