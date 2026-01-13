@@ -15,7 +15,7 @@ export function buildThermalPrint(
   { table, orderName, tableNote = null, items = [], createdAt },
   products = []
 ) {
-  // ESC/POS BIG TEXT
+  // ESC/POS BIG TEXT (double width + height)
   const BIG_ON  = "\x1D\x21\x11";
   const BIG_OFF = "\x1D\x21\x00";
 
@@ -28,7 +28,7 @@ export function buildThermalPrint(
   });
 
   // =========================
-  // SPLIT ITEMS
+  // SPLIT ITEMS: BAR / KITCHEN
   // =========================
   const barItems = [];
   const kitchenItems = [];
@@ -44,10 +44,12 @@ export function buildThermalPrint(
       "OTHER"
     ).toUpperCase();
 
+    const enrichedItem = { ...item, category };
+
     if (BAR_CATEGORIES.has(category)) {
-      barItems.push({ ...item, category });
+      barItems.push(enrichedItem);
     } else {
-      kitchenItems.push({ ...item, category });
+      kitchenItems.push(enrichedItem);
     }
   });
 
@@ -72,9 +74,15 @@ export function buildThermalPrint(
 
   function printItems(items) {
     let out = [];
+
     items.forEach(item => {
+      // CATEGORY LABEL (as before)
+      out.push(`[ ${item.category} ]`);
+
+      // ITEM LINE
       out.push(`${item.qty}x ${item.name}`);
 
+      // NOTES
       item.notes?.forEach(n => {
         out.push(`  - ${n}`);
       });
@@ -85,6 +93,7 @@ export function buildThermalPrint(
 
       out.push("");
     });
+
     return out;
   }
 
@@ -93,7 +102,7 @@ export function buildThermalPrint(
   // =========================
   let output = [];
 
-  // 🔥 ENABLE BIG TEXT FOR EVERYTHING
+  // 🔥 BIG TEXT FOR EVERYTHING
   output.push(BIG_ON);
 
   // ----- BAR TICKET -----
@@ -120,8 +129,6 @@ export function buildThermalPrint(
   // FINAL FEED
   // =========================
   output.push(line);
-
-  // 🔥 RESET TEXT SIZE
   output.push(BIG_OFF);
 
   return output.join("\n");
