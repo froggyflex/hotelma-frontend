@@ -47,19 +47,19 @@ export default function ActiveOrderPanel({
           )}
         </div>
  
-        {hasOrder && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onCloseTable();
-            }}
-            className="rounded-lg bg-red-600 px-3 py-1 text-xs font-medium text-white"
-          >
-            {t("tables.close_table")}
-          </button>
-        )}
+        {/* {hasOrder && (
+          // <button
+          //   type="button"
+          //   onClick={(e) => {
+          //     e.preventDefault();
+          //     e.stopPropagation();
+          //     onCloseTable();
+          //   }}
+          //   className="rounded-lg bg-red-600 px-3 py-1 text-xs font-medium text-white"
+          // >
+          //   {t("tables.close_table")}
+          // </button>
+        )} */}
       </div>
       
      

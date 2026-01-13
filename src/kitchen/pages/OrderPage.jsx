@@ -104,6 +104,8 @@ export default function OrderPage() {
   const [openTables, setOpenTables] = useState([]);
 
   const { t } = useTranslation(); 
+  
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   /* ---------- MEMOS ---------- */
 
@@ -486,25 +488,54 @@ async function sendNewItems() {
       alert("Failed to mark delivered");
     }
   }
+    async function confirmCloseTable() {
+      try {
+        await closeOrder(activeOrder._id);
 
-  async function closeTableHandler() {
-    if (!activeOrder) return;
-    if (!window.confirm(`Close table ${table?.name}?`)) return;
-
-    try {
-      await closeOrder(activeOrder._id);
-      setActiveOrder(null);
-      setTable(null);
-      setDraftItems([]);
-      setOrderName("");
-      setStep("category");
-      
-    } catch (e) {
-      console.error(e);
-      alert("Failed to close table");
+        setActiveOrder(null);
+        setTable(null);
+        setDraftItems([]);
+        setOrderName("");
+        setStep("category");
+      } catch (e) {
+        console.error(e);
+        showMessage("Failed to close table");
+      } finally {
+        setShowCloseConfirm(false);
+      }
     }
+
+  function closeTableHandler() {
+    if (!activeOrder) return;
+    setShowCloseConfirm(true);
   }
 
+  // async function closeTableHandler() {
+  //   if (!activeOrder) return;
+  //   if (!activeOrder) return;
+  //   setShowCloseConfirm(true);
+
+  //   try {
+  //     await closeOrder(activeOrder._id);
+  //     setActiveOrder(null);
+  //     setTable(null);
+  //     setDraftItems([]);
+  //     setOrderName("");
+  //     setStep("category");
+      
+  //   } catch (e) {
+  //     console.error(e);
+  //     alert("Failed to close table");
+  //   }
+  // }
+
+  function showMessage(msg) {
+    if (window.AndroidPrinter?.toast) {
+      window.AndroidPrinter.toast(msg);
+    } else {
+      console.log(msg);
+    }
+  }
   /* ---------- RENDER ---------- */
 
   return (
@@ -657,6 +688,37 @@ async function sendNewItems() {
               </div>
             </>
           )}
+
+
+          {showCloseConfirm && (
+            <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+              <div className="bg-white rounded-xl p-6 w-80 space-y-4">
+                <h2 className="text-lg font-semibold">
+                  Close table {orderName}?
+                </h2>
+
+                <p className="text-sm text-gray-600">
+                  This will close the active order.
+                </p>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    className="px-4 py-2 rounded-lg border"
+                    onClick={() => setShowCloseConfirm(false)}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    className="px-4 py-2 rounded-lg bg-red-600 text-white"
+                    onClick={confirmCloseTable}
+                  >
+                    Close table
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -718,6 +780,8 @@ async function sendNewItems() {
           setActiveItem(null);
         }}
       />
+
+
     </div>
   );
 }
