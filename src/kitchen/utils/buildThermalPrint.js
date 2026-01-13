@@ -20,7 +20,7 @@ export function buildThermalPrint(
   const BIG_OFF = "\x1D\x21\x00";
 
   const line = "------------------------";
-  const cutLine = "- - - - - CUT HERE - - - - -";
+  const cutLine = "- - - - CUT HERE - - - -";
 
   const time = new Date(createdAt || Date.now()).toLocaleTimeString([], {
     hour: "2-digit",
@@ -102,7 +102,7 @@ export function buildThermalPrint(
   // =========================
   let output = [];
 
-  // 🔥 BIG TEXT FOR EVERYTHING
+
   output.push(BIG_ON);
 
   // ----- BAR TICKET -----
