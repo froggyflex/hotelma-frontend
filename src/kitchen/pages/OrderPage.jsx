@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { enqueuePrintJob } from "../services/printQueue";
+import { v4 as uuidv4 } from "uuid";
 
 import {
   fetchActiveProducts,
@@ -122,7 +123,38 @@ export default function OrderPage() {
     item => item.status !== "delivered" && item.printed !== true
   )?? [];
 
+  const printerHealth = usePrinterHealth();
   /* ---------- LOAD BASE DATA ---------- */
+
+  function usePrinterHealth() {
+  const [health, setHealth] = useState(null);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      try {
+        // Prefer new native bridge
+        if (window.AndroidPrinter?.getHealth) {
+          const res = JSON.parse(window.AndroidPrinter.getHealth());
+          setHealth(res);
+          return;
+        }
+        // Fallback to legacy bridge (older builds)
+        if (window.AndroidPrinter?.getHealth) {
+          const res = JSON.parse(window.AndroidPrinter.getHealth());
+          setHealth(res);
+          return;
+        }
+        setHealth({ ok: false });
+      } catch (e) {
+        setHealth({ ok: false });
+      }
+    }, 4000);
+
+    return () => clearInterval(id);
+  }, []);
+
+  return health;
+}
 
   useEffect(() => {
       fetch(`${import.meta.env.VITE_API_URL}/api/kitchen/orders/active`)
@@ -216,28 +248,41 @@ export default function OrderPage() {
       products
     );
 
+    const itemIds = pendingItems.map((i) => i._id);
+    const attemptId = uuidv4();
+
     enqueuePrintJob({
       print: async () => {
-        if (!window.Android?.print) {
-          throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
+        // Prefer native ACK bridge (Android WebView app)
+        if (window.AndroidPrinter?.printText) {
+          const res = JSON.parse(window.AndroidPrinter.printText(printPayload));
+          if (!res.ok) throw new Error(res.code || "PRINT_FAILED");
+          return;
         }
 
-        await printSafely(printPayload);
+        // Fallback legacy bridge
+        if (window.AndroidPrinter?.print) {
+          await printSafely(printPayload);
+          return;
+        }
+
+        throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
       },
 
       onSuccess: async () => {
-        await markOrderPrinted(
-          activeOrder._id,
-          pendingItems.map(i => i._id)
-        );
+        // Wait for printer buffer to flush
+        await new Promise((r) => setTimeout(r, 1200));
+
+        // Confirm print in backend (idempotent)
+        await markOrderPrinted(activeOrder._id, itemIds, attemptId);
 
         const refreshed = await fetchActiveOrderByTable(table._id);
-        setActiveOrder(refreshed);
+        setActiveOrder(refreshed || activeOrder);
       },
 
-      onError: () => {
-        alert("Printer not available");
-      }
+      onError: (err) => {
+        console.warn("Print failed, items remain pending", err);
+      },
     });
   }
 
@@ -324,6 +369,9 @@ async function sendNewItems() {
       throw new Error("Order not created correctly");
     }
 
+    // 🔥 IMPORTANT: update UI immediately (even if printer is offline)
+    setActiveOrder(order);
+
     // 🔑 IMPORTANT: get DB-backed items (WITH _id)
     const dbItemsToPrint = order.items.filter(
       item => item.status === "new" && item.printed === false
@@ -333,6 +381,13 @@ async function sendNewItems() {
       console.warn("No printable DB items found");
       return;
     }
+
+
+    // 🔥 IMPORTANT: update UI immediately (even if printer is offline)
+    setActiveOrder(order);
+
+    const itemIds = dbItemsToPrint.map((i) => i._id);
+    const attemptId = uuidv4();
 
     // 2️⃣ BUILD PRINT PAYLOAD (USING DB ITEMS)
     const printPayload = buildThermalPrint(
@@ -345,30 +400,39 @@ async function sendNewItems() {
       products
     );
 
-    // 3️⃣ ENQUEUE PRINT JOB (FIFO)
     enqueuePrintJob({
       print: async () => {
-        if (!window.Android?.print) {
-          throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
+        // Prefer native ACK bridge (Android WebView app)
+        if (window.AndroidPrinter?.printText) {
+          const res = JSON.parse(window.AndroidPrinter.printText(printPayload));
+          if (!res.ok) throw new Error(res.code || "PRINT_FAILED");
+          return;
         }
 
-        await printSafely(printPayload);
+        // Fallback legacy bridge
+        if (window.AndroidPrinter?.print) {
+          await printSafely(printPayload);
+          return;
+        }
+
+        throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
       },
 
       onSuccess: async () => {
-        // ✅ mark ONLY DB items (real IDs)
-        await markOrderPrinted(
-          order._id,
-          dbItemsToPrint.map(i => i._id)
-        );
+        // Wait for printer buffer to flush
+        await new Promise((r) => setTimeout(r, 1200));
+
+        // Confirm print with attemptId (idempotent)
+        await markOrderPrinted(order._id, itemIds, attemptId);
 
         const refreshed = await fetchActiveOrderByTable(table._id);
         setActiveOrder(refreshed || order);
       },
 
-      onError: err => {
+      onError: (err) => {
         console.warn("Print failed, items remain pending", err);
-      }
+        // IMPORTANT: order is already saved; UI should still show it
+      },
     });
 
     // 4️⃣ CLEAR DRAFT
@@ -391,7 +455,7 @@ async function sendNewItems() {
       return {
         ...prev,
         items: prev.items.map((it) =>
-          String(it._id) === String(itemId) ? { ...it, delivered: true } : it
+          String(it._id) === String(itemId) ? { ...it, status: "delivered" } : it
         ),
       };
     });
@@ -442,12 +506,22 @@ async function sendNewItems() {
   }
 
   /* ---------- RENDER ---------- */
- 
+
   return (
     <div className="space-y-4 pb-24">
+
       <button className= "inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 active:scale-[0.98] transition" onClick={() => i18n.changeLanguage("it")}>🇮🇹</button>
       &nbsp;&nbsp;
       <button className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 active:scale-[0.98] transition" onClick={() => i18n.changeLanguage("en")}>🇬🇧</button>
+     
+      <div className="flex items-center gap-2 text-sm">
+      {printerHealth?.ok ? (
+        <span className="text-green-600">🖨 Printer connected</span>
+      ) : (
+        <span className="text-red-600">🖨 Printer offline</span>
+      )}
+    </div>
+      
       <TableMap
         tables={waiterTables}
         layout={{

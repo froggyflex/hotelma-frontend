@@ -66,7 +66,7 @@ export async function addItemsToOrder(orderId, items) {
   return res.json();
 }
 
-export async function markOrderPrinted(orderId, itemIds) {
+export async function markOrderPrinted(orderId, itemIds, attemptId) {
   const res = await fetch(
     `${import.meta.env.VITE_API_URL}/api/kitchen/orders/${orderId}/print`,
     {
@@ -74,17 +74,18 @@ export async function markOrderPrinted(orderId, itemIds) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ itemIds }),
+      body: JSON.stringify({ itemIds, attemptId }),
     }
   );
 
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(errText || "Failed to mark order as printed");
+    const text = await res.text();
+    throw new Error(text || "Failed to mark order as printed");
   }
 
   return res.json();
 }
+
 
 
 
