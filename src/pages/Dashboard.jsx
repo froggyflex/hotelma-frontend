@@ -113,6 +113,7 @@ const isActiveArrivalBooking = (booking) => {
 export default function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
+  const [removingArrivalId, setRemovingArrivalId] = useState(null)
   
   
   useEffect(() => {
@@ -141,6 +142,22 @@ useEffect(() => {
 
   registerToken();
 }, []);
+
+  const removeArrival = async (booking) => {
+    if (!booking?.id) return;
+    if (!window.confirm(`Remove ${booking.guestName || "this arrival"} from bookings?`)) return;
+
+    try {
+      setRemovingArrivalId(booking.id);
+      await axios.delete(`${URL}/${booking.id}`);
+      setBookings((prev) => prev.filter((b) => b.id !== booking.id));
+    } catch (err) {
+      console.error("Failed to remove arrival:", err);
+      alert("Could not remove this arrival. Please try again.");
+    } finally {
+      setRemovingArrivalId(null);
+    }
+  };
    
   //from the database => "2025-11-24"
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -417,11 +434,16 @@ return (
                   </div>
 
                   {/* RIGHT: action */}
-                  {/* <div className="self-center">
-                    <button className="px-4 py-1.5 rounded-full bg-blue-600 text-white text-xs font-medium hover:bg-blue-700">
-                      Check-in
+                  <div className="self-start sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => removeArrival(b)}
+                      disabled={removingArrivalId === b.id}
+                      className="px-4 py-1.5 rounded-full bg-red-50 text-red-700 text-xs font-medium hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {removingArrivalId === b.id ? "Removing..." : "No-show"}
                     </button>
-                  </div> */}
+                  </div>
                 </div>
               );
             })}
