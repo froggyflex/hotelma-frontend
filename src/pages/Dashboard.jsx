@@ -92,6 +92,23 @@ function parseNotes(text) {
 
 const norm = (d) => new Date(d).toISOString().slice(0, 10);
 
+const isActiveArrivalBooking = (booking) => {
+  const status = String(booking.status || booking.bookingStatus || "").toLowerCase();
+
+  return (
+    status !== "cancelled" &&
+    status !== "canceled" &&
+    status !== "removed" &&
+    status !== "deleted" &&
+    booking.cancelled !== true &&
+    booking.canceled !== true &&
+    booking.removed !== true &&
+    booking.deleted !== true &&
+    booking.isDeleted !== true &&
+    booking.active !== false
+  );
+};
+
  
 export default function Dashboard() {
   const [bookings, setBookings] = useState([])
@@ -101,6 +118,8 @@ export default function Dashboard() {
   useEffect(() => {
     axios.get(URL).then((res) => setBookings(res.data))
     axios.get(URLR).then((res) => setRooms(res.data))
+
+     
   }, [])
 
  
@@ -127,8 +146,13 @@ useEffect(() => {
   const todayStr = new Date().toISOString().slice(0, 10)
   const today = new Date();    
 
-  const arrivalsToday = bookings.filter((b) =>  norm(b.checkIn) === todayStr)
+  console.log("Bookings:", bookings);
+  const arrivalsToday = bookings.filter((b) => (
+    isActiveArrivalBooking(b) && norm(b.checkIn) === todayStr
+  ))
+
   const departuresToday = bookings.filter((b) => norm(b.checkOut) === todayStr)
+   
   const occupiedToday = bookings.filter(
     (b) => norm(b.checkIn) <= todayStr && norm(b.checkOut) > todayStr
   )
