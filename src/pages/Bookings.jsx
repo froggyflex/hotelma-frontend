@@ -279,9 +279,17 @@ function MonthlyCalendar({
             <div
               key={d.toISOString()}
               style={{ width: dayWidth }}
-              className="p-2 text-sm border-r"
+              title={format(d, "EEEE, d MMMM yyyy")}
+              className={`min-w-0 border-r px-0.5 py-1.5 ${
+                d.getDay() === 0 || d.getDay() === 6 ? "bg-slate-200" : "bg-slate-100"
+              }`}
             >
-              {format(d, "d")}
+              <span className="block truncate text-[10px] font-medium uppercase tracking-tight text-slate-500">
+                {format(d, "EEE")}
+              </span>
+              <span className="block text-sm font-semibold leading-4 text-slate-800">
+                {format(d, "d")}
+              </span>
             </div>
           ))}
         </div>
@@ -311,7 +319,9 @@ function MonthlyCalendar({
                   <div
                     key={d.toISOString()}
                     style={{ width: dayWidth }}
-                    className="border-r border-slate-300 h-full border-b border-slate-300 h-full"
+                    className={`h-full border-b border-r border-slate-300 ${
+                      d.getDay() === 0 || d.getDay() === 6 ? "bg-slate-50" : "bg-white"
+                    }`}
                   />
                 ))}
               </div>
