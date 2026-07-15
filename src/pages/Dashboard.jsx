@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import {
   format,
@@ -163,7 +163,6 @@ useEffect(() => {
   const todayStr = new Date().toISOString().slice(0, 10)
   const today = new Date();    
 
-  console.log("Bookings:", bookings);
   const arrivalsToday = bookings.filter((b) => (
     isActiveArrivalBooking(b) && norm(b.checkIn) === todayStr
   ))
@@ -202,6 +201,32 @@ useEffect(() => {
     (sum, b) => sum + Number(b.deposit || 0),
     0
   );
+  const expectedRevenueByYear = useMemo(() => {
+    const totals = new Map();
+
+    bookings.forEach((booking) => {
+      if (!isActiveArrivalBooking(booking)) return;
+
+      const year = Number(String(booking.checkIn || "").slice(0, 4));
+      const amount = Number(booking.totalAmount || 0);
+      if (!Number.isInteger(year) || !Number.isFinite(amount)) return;
+
+      const current = totals.get(year) || { revenue: 0, bookings: 0 };
+      totals.set(year, {
+        revenue: current.revenue + amount,
+        bookings: current.bookings + 1,
+      });
+    });
+
+    return Array.from(totals, ([year, values]) => ({ year, ...values }))
+      .sort((a, b) => a.year - b.year);
+  }, [bookings]);
+
+  const formatCurrency = (amount) => new Intl.NumberFormat("en-IE", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(amount);
   const bookingsByMonth = React.useMemo(() => {
         const map = {};
 
@@ -357,6 +382,35 @@ return (
                 €{fullyPaidExpectedRevenue.toLocaleString()}
               </div>
             </div>
+          </div>
+
+          <div className="mt-6 border-t border-slate-200 pt-5">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <h4 className="font-semibold text-slate-800">Expected income by year</h4>
+                <p className="text-xs text-slate-500">Grouped by each booking's arrival year</p>
+              </div>
+            </div>
+
+            {expectedRevenueByYear.length === 0 ? (
+              <p className="rounded-xl bg-white p-4 text-sm text-slate-500">No booking income available.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {expectedRevenueByYear.map(({ year, revenue, bookings: count }) => (
+                  <div key={year} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-slate-600">{year}</span>
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                        {count} {count === 1 ? "booking" : "bookings"}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">
+                      {formatCurrency(revenue)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
        

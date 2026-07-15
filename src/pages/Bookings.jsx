@@ -474,11 +474,22 @@ export default function Bookings() {
 
  
   function deleteBooking(id) {
-    if (!window.confirm("Done")) return;
+    // The API deletion has already succeeded when this callback runs. Update the
+    // Gantt immediately instead of fetching again (or asking for confirmation twice).
+    setBookings((prev) => prev.filter((b) => String(b.id) !== String(id)));
+    setSearchResults((prev) => prev.filter((b) => String(b.id) !== String(id)));
+    setEditingBooking(null);
+  }
 
-    setBookings((prev) => prev.filter((b) => b.id !== id));
-    setEditingBooking(null); // close modal
+  function upsertBooking(savedBooking) {
+    if (!savedBooking?.id) return;
 
+    setBookings((prev) => {
+      const exists = prev.some((b) => String(b.id) === String(savedBooking.id));
+      return exists
+        ? prev.map((b) => String(b.id) === String(savedBooking.id) ? savedBooking : b)
+        : [...prev, savedBooking];
+    });
   }
     
     const bookingsByMonth = React.useMemo(() => {
@@ -1143,9 +1154,9 @@ export default function Bookings() {
       {newBookingOpen && (
         <Modal onClose={() => setNewBookingOpen(false)}>
           <BookingForm
-            onSave={() => {
+            onSave={(savedBooking) => {
+              upsertBooking(savedBooking);
               setNewBookingOpen(false);
-              axios.get(URL).then((res) => setBookings(res.data));
             }}
             onDelete={() => {
               setNewBookingOpen(false);
@@ -1163,9 +1174,9 @@ export default function Bookings() {
           <BookingEditor
             booking={editingBooking}
             onDelete={deleteBooking} 
-            onSave={() => {
+            onSave={(savedBooking) => {
+              upsertBooking(savedBooking);
               setEditingBooking(null);
-              axios.get(URL).then((res) => setBookings(res.data));
             }}
             rooms={rooms}
           />
@@ -1312,13 +1323,11 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
       return;
     }
 
-    if (booking) {
-      await axios.put(`${URL}/${booking.id}`, form);
-    } else {
-      await axios.post(URL, form);
-    }
+    const response = booking
+      ? await axios.put(`${URL}/${booking.id}`, form)
+      : await axios.post(URL, form);
 
-    onSave();
+    onSave(response.data);
   };
  
   function updateRoom(e){
@@ -1681,18 +1690,12 @@ return (
    BOOKING EDITOR
 ------------------------------------------------------- */
 function BookingEditor({ booking, onSave, onDelete, rooms }) {
-  
-  const handleSave = async (form) => {
-    await axios.put(`${URL}/${booking.id}`, form);
-    onSave();
-  };
-
 const handleDelete = async () => {
   if (!window.confirm("Are you sure you want to delete this booking?")) return;
 
   try {
     await axios.delete(`${URL}/${booking.id}`);
-    onDelete(); // parent closes modal + refreshes or updates state
+    onDelete(booking.id);
   } catch (err) {
     console.error("Delete failed:", err);
     alert("Could not delete booking. Please try again.");
@@ -1702,7 +1705,7 @@ const handleDelete = async () => {
 
   return (
     <div className="w-full">
-      <BookingForm booking={booking} onSave={() => onSave()} rooms={rooms} onDelete={handleDelete}/>
+      <BookingForm booking={booking} onSave={onSave} rooms={rooms} onDelete={handleDelete}/>
       {/* Delete button */}
       {/* <button
         className="mt-4 w-full py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
