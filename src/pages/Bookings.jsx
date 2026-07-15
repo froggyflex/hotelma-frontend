@@ -552,10 +552,12 @@ export default function Bookings() {
 
 
   const handleMoveBooking = async (updated) => {
-  await axios.put(`${API}/bookings/${updated.id}`, updated);
-  // reload bookings
-  const fresh = await axios.get(`${API}/bookings`);
-  setBookings(fresh.data || []);
+  try {
+    const response = await axios.put(`${API}/bookings/${updated.id}`, updated);
+    upsertBooking(response.data);
+  } catch (error) {
+    alert(error.response?.data?.error || "This booking cannot be moved to that room or date.");
+  }
   };
 
   /* -------------------------------------------------------
@@ -1163,6 +1165,7 @@ export default function Bookings() {
               axios.get(URL).then((res) => setBookings(res.data));
             }}
             rooms={rooms}
+            bookings={bookings}
           />
         </Modal>
       )}
@@ -1179,6 +1182,7 @@ export default function Bookings() {
               setEditingBooking(null);
             }}
             rooms={rooms}
+            bookings={bookings}
           />
         </Modal>
       )}
@@ -1190,15 +1194,23 @@ export default function Bookings() {
    MODAL COMPONENT
 ------------------------------------------------------- */
 function Modal({ children, onClose }) {
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white p-4 rounded-3xl shadow-2xl relative w-full max-w-4xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:p-4 lg:p-6" onMouseDown={onClose}>
+      <div className="relative h-full w-full overflow-hidden bg-white shadow-2xl sm:h-[94vh] sm:max-w-7xl sm:rounded-2xl" onMouseDown={(event) => event.stopPropagation()}>
         <button
           onClick={onClose}
-          className="absolute right-1 top-3 text-slate-600 hover:text-slate-800"
+          className="absolute right-5 top-5 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-xl text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+          aria-label="Close booking editor"
         >
-          ✖
-          
+          &times;
         </button>
         {children}
       </div>
@@ -1283,7 +1295,7 @@ function BookingCard({
 /* -------------------------------------------------------
    BOOKING FORM
 ------------------------------------------------------- */
-function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
+function BookingForm({ booking, onSave, rooms, bookings = [], onClose, onDelete }) {
    
   const [form, setForm] = useState(
     booking || {
@@ -1301,6 +1313,26 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
       notes: "",
     }
   );
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const unavailableRoomNames = useMemo(() => {
+    if (!form.checkIn || !form.checkOut || form.checkOut <= form.checkIn) return new Set();
+
+    return new Set(
+      bookings
+        .filter((candidate) => String(candidate.id) !== String(booking?.id))
+        .filter((candidate) => (
+          candidate.checkIn < form.checkOut && candidate.checkOut > form.checkIn
+        ))
+        .map((candidate) => String(candidate.room))
+    );
+  }, [bookings, booking?.id, form.checkIn, form.checkOut]);
+
+  const selectedRoom = rooms.find((room) => String(room.name) === String(form.room));
+  const guestCount = Math.max(0, Number(form.adults) || 0) + Math.max(0, Number(form.kids) || 0);
+  const selectedRoomUnavailable = unavailableRoomNames.has(String(form.room));
+  const selectedRoomOverCapacity = selectedRoom && guestCount > Number(selectedRoom.capacity || 0);
  
   const update = (field) => (e) =>
   {
@@ -1312,6 +1344,7 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
     
   }
   const submit = async () => {
+    setSubmitError("");
     if (
       !form.guestName ||
       !form.room ||
@@ -1319,15 +1352,35 @@ function BookingForm({ booking, onSave, rooms, onClose, onDelete }) {
       !form.checkOut ||
       !form.totalAmount
     ) {
-      alert("Please fill in all required fields.");
+      setSubmitError("Please complete the guest, room, dates and total amount fields.");
       return;
     }
 
-    const response = booking
-      ? await axios.put(`${URL}/${booking.id}`, form)
-      : await axios.post(URL, form);
+    if (form.checkOut <= form.checkIn) {
+      setSubmitError("Check-out must be after check-in.");
+      return;
+    }
+    if (selectedRoomUnavailable) {
+      setSubmitError(`Room ${form.room} is not available for these dates.`);
+      return;
+    }
+    if (selectedRoomOverCapacity) {
+      setSubmitError(`Room ${form.room} allows ${selectedRoom.capacity} guests; this booking has ${guestCount}.`);
+      return;
+    }
 
-    onSave(response.data);
+    try {
+      setSubmitting(true);
+      const response = booking
+        ? await axios.put(`${URL}/${booking.id}`, form)
+        : await axios.post(URL, form);
+
+      onSave(response.data);
+    } catch (error) {
+      setSubmitError(error.response?.data?.error || "The booking could not be saved. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
  
   function updateRoom(e){
@@ -1375,11 +1428,10 @@ const remaining = form.paid
   : Math.max(0, total - deposit);
 
 return (
-  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto
-                  max-h-[90vh] flex flex-col relative border border-sky-100">
+  <div className="relative flex h-full w-full flex-col bg-slate-50">
 
     {/* ================= HEADER (fixed) ================= */}
-    <div className="p-6 sm:p-8 border-b flex items-center justify-between shrink-0">
+    <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-5 pr-20 sm:px-8">
       <div className="flex items-center gap-3">
         <div className="h-9 w-9 rounded-full bg-gradient-to-br from-sky-400 to-blue-500
                         flex items-center justify-center text-white text-xl shadow-md">
@@ -1397,10 +1449,10 @@ return (
     </div>
 
     {/* ================= BODY (scrollable) ================= */}
-    <div className="overflow-y-auto px-6 sm:px-8 py-6 space-y-6">
+    <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-6 overflow-y-auto p-4 sm:p-6 lg:grid-cols-2 lg:p-8">
 
       {/* Guest & Room */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3 lg:col-span-2 sm:p-6">
         <div className="space-y-1">
           <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
             <span className="text-sky-500">👤</span> Guest Name
@@ -1425,17 +1477,32 @@ return (
                        focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
           >
             <option value="">Select room...</option>
-            {rooms.map((r) => (
-              <option key={r.id} value={r.name}>
-                {r.name} — {r.type} (capacity {r.capacity})
+            {rooms.map((r) => {
+              const unavailable = unavailableRoomNames.has(String(r.name));
+              const overCapacity = guestCount > Number(r.capacity || 0);
+              return (
+              <option key={r.id} value={r.name} disabled={unavailable || overCapacity}>
+                {r.name} — {r.type} (capacity {r.capacity}){unavailable ? " — unavailable" : overCapacity ? " — too small" : ""}
               </option>
+            )})}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">Booking Channel</label>
+          <select
+            value={form.channel}
+            onChange={update("channel")}
+            className="w-full rounded-lg border border-gray-300 bg-sky-50/40 px-3 py-2 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+          >
+            {["Direct", "Booking.com", "Expedia", "Airbnb", "Travel agent", "Other"].map((channel) => (
+              <option key={channel} value={channel}>{channel}</option>
             ))}
           </select>
         </div>
       </div>
 
       {/* Stay Details */}
-      <div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
           <span className="text-sky-500">📅</span> Stay Details
         </h4>
@@ -1445,6 +1512,7 @@ return (
               <label className="text-sm font-medium text-gray-700">Check-in</label>
             <input
               type="date"
+              required
               className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
                          focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
               value={form.checkIn}
@@ -1456,6 +1524,8 @@ return (
             <label className="text-sm font-medium text-gray-700">Check-out</label>
             <input
               type="date"
+              required
+              min={form.checkIn || undefined}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
                          focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
               value={form.checkOut}
@@ -1499,10 +1569,19 @@ return (
                 </div>
               </div>
             )}
+            {form.room && form.checkIn && form.checkOut && nights > 0 && (
+              <div className={`mt-3 rounded-lg px-3 py-2 text-sm font-medium ${selectedRoomUnavailable || selectedRoomOverCapacity ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
+                {selectedRoomUnavailable
+                  ? `Room ${form.room} overlaps another booking.`
+                  : selectedRoomOverCapacity
+                    ? `Room ${form.room} allows ${selectedRoom?.capacity || 0} guests.`
+                    : `Room ${form.room} is available for these dates.`}
+              </div>
+            )}
       </div>
 
       {/* Guests */}
-      <div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
           <span className="text-sky-500">👨‍👩‍👧</span> Guests
         </h4>
@@ -1512,6 +1591,7 @@ return (
             <label className="text-sm font-medium text-gray-700">Adults</label>
             <input
               type="number"
+              min="1"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
                          focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
               value={form.adults}
@@ -1523,6 +1603,7 @@ return (
             <label className="text-sm font-medium text-gray-700">Kids</label>
             <input
               type="number"
+              min="0"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
                          focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
               value={form.kids}
@@ -1533,7 +1614,7 @@ return (
       </div>
 
       {/* Pricing & Channel */}
-      <div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
           <span className="text-sky-500">💶</span> Pricing & Deposit
         </h4>
@@ -1645,7 +1726,7 @@ return (
       </div>
 
       {/* Notes */}
-      <div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
           <span className="text-sky-500">📝</span> Notes
         </h4>
@@ -1660,7 +1741,7 @@ return (
     </div>
 
     {/* ================= FOOTER (fixed) ================= */}
-    <div className="p-6 sm:p-8 border-t flex justify-between items-center gap-3 shrink-0">
+    <div className="flex shrink-0 flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-8">
       {booking && (
         <button
           onClick={onDelete}
@@ -1670,12 +1751,19 @@ return (
         </button>
       )}
 
+      {submitError && (
+        <div role="alert" className="min-w-0 flex-1 rounded-lg bg-red-50 px-4 py-2 text-sm font-medium text-red-700">
+          {submitError}
+        </div>
+      )}
+
       <button
         onClick={submit}
+        disabled={submitting || selectedRoomUnavailable || selectedRoomOverCapacity}
         className="ml-auto px-5 py-2.5 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600
-                   text-white font-medium hover:from-sky-600 hover:to-blue-700 shadow-md"
+                   text-white font-medium hover:from-sky-600 hover:to-blue-700 shadow-md disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {booking ? "Save Changes" : "Create Booking"}
+        {submitting ? "Saving..." : booking ? "Save Changes" : "Create Booking"}
       </button>
     </div>
   </div>
@@ -1689,7 +1777,7 @@ return (
 /* -------------------------------------------------------
    BOOKING EDITOR
 ------------------------------------------------------- */
-function BookingEditor({ booking, onSave, onDelete, rooms }) {
+function BookingEditor({ booking, onSave, onDelete, rooms, bookings }) {
 const handleDelete = async () => {
   if (!window.confirm("Are you sure you want to delete this booking?")) return;
 
@@ -1704,8 +1792,8 @@ const handleDelete = async () => {
     
 
   return (
-    <div className="w-full">
-      <BookingForm booking={booking} onSave={onSave} rooms={rooms} onDelete={handleDelete}/>
+    <div className="h-full w-full">
+      <BookingForm booking={booking} onSave={onSave} rooms={rooms} bookings={bookings} onDelete={handleDelete}/>
       {/* Delete button */}
       {/* <button
         className="mt-4 w-full py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"

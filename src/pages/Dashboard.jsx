@@ -170,8 +170,30 @@ useEffect(() => {
   const departuresToday = bookings.filter((b) => norm(b.checkOut) === todayStr)
    
   const occupiedToday = bookings.filter(
-    (b) => norm(b.checkIn) <= todayStr && norm(b.checkOut) > todayStr
+    (b) => isActiveArrivalBooking(b) && norm(b.checkIn) <= todayStr && norm(b.checkOut) > todayStr
   )
+  const knownRoomNames = new Set(rooms.map((room) => String(room.name)));
+  const occupiedRoomNames = new Set(
+    occupiedToday
+      .map((booking) => String(booking.room))
+      .filter((roomName) => knownRoomNames.has(roomName))
+  );
+  const occupiedRoomCount = occupiedRoomNames.size;
+  const occupancyPercent = rooms.length
+    ? Math.min(100, Math.round((occupiedRoomCount / rooms.length) * 100))
+    : 0;
+  const overlappingBookingsToday = Math.max(0, occupiedToday.length - occupiedRoomCount);
+  const occupiedBookingCounts = occupiedToday.reduce((counts, booking) => {
+    const roomName = String(booking.room);
+    counts.set(roomName, (counts.get(roomName) || 0) + 1);
+    return counts;
+  }, new Map());
+  const overlappingRoomNames = Array.from(occupiedBookingCounts)
+    .filter(([roomName, count]) => knownRoomNames.has(roomName) && count > 1)
+    .map(([roomName]) => roomName);
+  const unknownRoomBookingsToday = occupiedToday.filter(
+    (booking) => !knownRoomNames.has(String(booking.room))
+  ).length;
 
   const dirtyRooms = rooms.filter((r) => r.status === 'dirty')
  
@@ -293,19 +315,33 @@ return (
       </div>
 
       {/* OCCUPANCY CARD */}
-      <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-400 flex flex-col items-center flex-1 space-y-6">
-        <div className="font-semibold text-gray-700 mb-3">Occupancy</div>
+      <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-400 flex flex-col items-center">
+        <div className="font-semibold text-gray-700">Occupancy</div>
 
         {/* DONUT (placeholder – plug your chart here) */}
-        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-[8px] sm:border-[10px] border-blue-500 border-t-gray-300 flex items-center justify-center ">
-          <span className="text-xl font-semibold text-blue-600">
-            {Math.round((occupiedToday.length / rooms.length) * 100)}%
+        <div className="relative mt-4 h-28 w-28" aria-label={`${occupancyPercent}% occupancy`}>
+          <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="#e2e8f0" strokeWidth="10" />
+            <circle
+              cx="60" cy="60" r="48" fill="none" stroke="#3b82f6" strokeWidth="10"
+              strokeLinecap="round" pathLength="100" strokeDasharray={`${occupancyPercent} 100`}
+            />
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-xl font-semibold text-blue-600">
+            {occupancyPercent}%
           </span>
         </div>
 
-        <div className="text-gray-500 text-sm mt-4">
-          {occupiedToday.length} / {rooms.length} occupied
+        <div className="mt-3 text-sm text-gray-500">
+          {occupiedRoomCount} / {rooms.length} occupied
         </div>
+        {overlappingBookingsToday > 0 && (
+          <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800">
+            <div>{overlappingBookingsToday} conflicting or unknown-room {overlappingBookingsToday === 1 ? "booking" : "bookings"} detected</div>
+            {overlappingRoomNames.length > 0 && <div className="mt-1">Overlapping: room {overlappingRoomNames.join(", ")}</div>}
+            {unknownRoomBookingsToday > 0 && <div className="mt-1">Unknown room assignments: {unknownRoomBookingsToday}</div>}
+          </div>
+        )}
       </div>
 
       {/* UNITS BREAKDOWN */}
@@ -314,12 +350,12 @@ return (
 
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Available units</span>
-          <span className="font-medium">{rooms.length - occupiedToday.length}</span>
+          <span className="font-medium">{Math.max(0, rooms.length - occupiedRoomCount)}</span>
         </div>
 
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Booked units</span>
-          <span className="font-medium">{occupiedToday.length}</span>
+          <span className="font-medium">{occupiedRoomCount}</span>
         </div>
 
         <div className="flex justify-between text-sm">
@@ -428,13 +464,13 @@ return (
         </div>
 
         <div className="cursor-pointer flex flex-col items-center">
-          <span className="text-lg font-semibold text-gray-800">{occupiedToday.length}</span>
+          <span className="text-lg font-semibold text-gray-800">{occupiedRoomCount}</span>
           <span className="text-gray-600 text-sm">In-house</span>
         </div>
 
         <div className="cursor-pointer flex flex-col items-center">
           <span className="text-lg font-semibold text-gray-800">
-            {occupiedToday.length - arrivalsToday.length}
+            {Math.max(0, occupiedRoomCount - arrivalsToday.length)}
           </span>
           <span className="text-gray-600 text-sm">Stayovers</span>
         </div>
