@@ -114,6 +114,7 @@ export default function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [rooms, setRooms] = useState([])
   const [removingArrivalId, setRemovingArrivalId] = useState(null)
+  const [conflictDetailsOpen, setConflictDetailsOpen] = useState(false)
   
   
   useEffect(() => {
@@ -193,7 +194,26 @@ useEffect(() => {
     .map(([roomName]) => roomName);
   const unknownRoomBookingsToday = occupiedToday.filter(
     (booking) => !knownRoomNames.has(String(booking.room))
-  ).length;
+  );
+  const unknownRoomBookingsCount = unknownRoomBookingsToday.length;
+  const conflictRoomGroups = overlappingRoomNames.map((roomName) => {
+    const roomBookings = occupiedToday
+      .filter((booking) => String(booking.room) === roomName)
+      .sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn)));
+    const overlaps = [];
+
+    roomBookings.forEach((booking, index) => {
+      roomBookings.slice(index + 1).forEach((otherBooking) => {
+        const overlapStart = booking.checkIn > otherBooking.checkIn ? booking.checkIn : otherBooking.checkIn;
+        const overlapEnd = booking.checkOut < otherBooking.checkOut ? booking.checkOut : otherBooking.checkOut;
+        if (overlapStart < overlapEnd) {
+          overlaps.push({ booking, otherBooking, overlapStart, overlapEnd });
+        }
+      });
+    });
+
+    return { roomName, bookings: roomBookings, overlaps };
+  });
 
   const dirtyRooms = rooms.filter((r) => r.status === 'dirty')
  
@@ -295,6 +315,107 @@ const notesSummary = {
 return (
   <div className="w-full flex flex-col lg:flex-row gap-4 lg:gap-6 px-3 sm:px-4 lg:px-6 py-4">
 
+    {conflictDetailsOpen && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6"
+        onMouseDown={() => setConflictDetailsOpen(false)}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="conflict-details-title"
+          className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-slate-50 shadow-2xl"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Data integrity</p>
+              <h2 id="conflict-details-title" className="mt-1 text-xl font-semibold text-slate-900">Today's occupancy conflicts</h2>
+              <p className="mt-1 text-sm text-slate-500">These bookings all include {todayStr} and require review.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConflictDetailsOpen(false)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-xl text-slate-500 hover:bg-slate-50"
+              aria-label="Close conflict details"
+            >
+              &times;
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
+            {conflictRoomGroups.map(({ roomName, bookings: roomBookings, overlaps }) => (
+              <section key={roomName} className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-100 bg-amber-50 px-4 py-3">
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Room {roomName}</h3>
+                    <p className="text-xs text-amber-800">{roomBookings.length} simultaneous bookings</p>
+                  </div>
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Overlap</span>
+                </div>
+                <div className="space-y-1.5 border-b border-amber-100 bg-amber-50/50 px-4 py-3 text-sm text-amber-900">
+                  {overlaps.map(({ booking, otherBooking, overlapStart, overlapEnd }) => (
+                    <div key={`${booking.id}-${otherBooking.id}`}>
+                      <span className="font-semibold">{booking.guestName}</span> and <span className="font-semibold">{otherBooking.guestName}</span>
+                      {" overlap from "}<span className="font-semibold">{overlapStart}</span> to <span className="font-semibold">{overlapEnd}</span>
+                      <span className="text-xs text-amber-700"> (check-out exclusive)</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {roomBookings.map((booking) => (
+                    <div key={booking.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[1.3fr_1fr_auto] sm:items-center">
+                      <div>
+                        <div className="font-semibold text-slate-900">{booking.guestName || "Unnamed guest"}</div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {booking.channel || "Direct"} · Booking {String(booking.id).slice(-8)}
+                        </div>
+                      </div>
+                      <div className="text-sm text-slate-700">
+                        <div>{booking.checkIn} → {booking.checkOut}</div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {Number(booking.adults || 0)} adults · {Number(booking.kids || 0)} children
+                        </div>
+                      </div>
+                      <div className="text-left sm:text-right">
+                        <div className="text-xs text-slate-500">Expected</div>
+                        <div className="font-semibold text-slate-900">{formatCurrency(Number(booking.totalAmount || 0))}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+
+            {unknownRoomBookingsToday.length > 0 && (
+              <section className="overflow-hidden rounded-xl border border-red-200 bg-white shadow-sm">
+                <div className="border-b border-red-100 bg-red-50 px-4 py-3">
+                  <h3 className="font-semibold text-slate-900">Unknown room assignments</h3>
+                  <p className="text-xs text-red-700">The assigned room no longer exists in the Rooms list.</p>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {unknownRoomBookingsToday.map((booking) => (
+                    <div key={booking.id} className="grid gap-2 px-4 py-4 sm:grid-cols-2">
+                      <div>
+                        <div className="font-semibold text-slate-900">{booking.guestName || "Unnamed guest"}</div>
+                        <div className="text-sm text-red-700">Assigned room: {booking.room || "None"}</div>
+                      </div>
+                      <div className="text-sm text-slate-700 sm:text-right">{booking.checkIn} → {booking.checkOut}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <p className="text-xs text-slate-500">Open Bookings to edit or remove the incorrect reservation.</p>
+            <a href="/bookings" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Open bookings</a>
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* ---------------------------------- */}
     {/* LEFT SIDEBAR (DATE + OCCUPANCY)    */}
     {/* ---------------------------------- */}
@@ -337,9 +458,16 @@ return (
         </div>
         {overlappingBookingsToday > 0 && (
           <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800">
-            <div>{overlappingBookingsToday} conflicting or unknown-room {overlappingBookingsToday === 1 ? "booking" : "bookings"} detected</div>
+            <div>{overlappingBookingsToday} occupancy {overlappingBookingsToday === 1 ? "conflict" : "conflicts"} detected</div>
             {overlappingRoomNames.length > 0 && <div className="mt-1">Overlapping: room {overlappingRoomNames.join(", ")}</div>}
-            {unknownRoomBookingsToday > 0 && <div className="mt-1">Unknown room assignments: {unknownRoomBookingsToday}</div>}
+            {unknownRoomBookingsCount > 0 && <div className="mt-1">Unknown room assignments: {unknownRoomBookingsCount}</div>}
+            <button
+              type="button"
+              onClick={() => setConflictDetailsOpen(true)}
+              className="mt-2 rounded-md border border-amber-300 bg-white px-2.5 py-1 font-semibold text-amber-900 shadow-sm hover:bg-amber-100"
+            >
+              View conflict details
+            </button>
           </div>
         )}
       </div>
