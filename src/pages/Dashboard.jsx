@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import {
-  format,
-  parseISO
-} from "date-fns";
+  BedDouble,
+  CalendarDays,
+  LogIn,
+  LogOut,
+  Sparkles,
+  Users,
+  WalletCards,
+} from "lucide-react";
 
 import { getFcmToken } from "../firebaseMessaging";
 
@@ -91,6 +96,15 @@ function parseNotes(text) {
 }
 
 const norm = (d) => new Date(d).toISOString().slice(0, 10);
+
+const formatGuests = (booking) => {
+  const adults = Number(booking.adults || 0);
+  const kids = Number(booking.kids || 0);
+  const parts = [`${adults} ${adults === 1 ? "adult" : "adults"}`];
+
+  if (kids > 0) parts.push(`${kids} ${kids === 1 ? "child" : "children"}`);
+  return parts.join(" · ");
+};
 
 const isActiveArrivalBooking = (booking) => {
   const status = String(booking.status || booking.bookingStatus || "").toLowerCase();
@@ -269,18 +283,6 @@ useEffect(() => {
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(amount);
-  const bookingsByMonth = React.useMemo(() => {
-        const map = {};
-
-        bookings.forEach((b) => {
-          const month = format(parseISO(b.checkIn), "MMMM yyyy");
-          
-          map[month] = (map[month] || 0) + 1;
-        });
-
-        return Object.entries(map);  
-  }, [bookings]);
-
 const fullyPaidExpectedRevenue = bookings
   .filter((b) => b.paid === true)
   .reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
@@ -290,12 +292,6 @@ const fullyPaidExpectedRevenue = bookings
 // TODAY AT A GLANCE
 // -------------------------------
 
-// Next arrival (today, earliest check-in)
-const nextArrival = arrivalsToday[0] || null;
-
-// Next departure (today)
-const nextDeparture = departuresToday[0] || null;
-
 // Outstanding balance today
 const outstandingToday = arrivalsToday.reduce((sum, b) => {
   if (b.paid) return sum;
@@ -304,16 +300,16 @@ const outstandingToday = arrivalsToday.reduce((sum, b) => {
   return sum + Math.max(0, total - deposit);
 }, 0);
 
-// Special notes summary (using your existing parsed notes)
-const notesSummary = {
-  flights: arrivalsToday.filter(b => b.flight).length,
-  lateArrivals: arrivalsToday.filter(b => b.lateArrival).length,
-  deposits: arrivalsToday.filter(b => Number(b.deposit) > 0).length,
-};
+const arrivalAttentionCount = arrivalsToday.filter((booking) => (
+  /\b[A-Z]{2,3}\d{3,4}\b/i.test(booking.notes || "") ||
+  /\blate\b/i.test(booking.notes || "") ||
+  /\b(?:22|23):[0-5]\d\b/.test(booking.notes || "") ||
+  Number(booking.deposit) > 0
+)).length;
 
 
 return (
-  <div className="w-full flex flex-col lg:flex-row gap-4 lg:gap-6 px-3 sm:px-4 lg:px-6 py-4">
+  <div className="mx-auto flex w-full max-w-[1600px] flex-col items-start gap-4 lg:flex-row">
 
     {conflictDetailsOpen && (
       <div
@@ -420,11 +416,12 @@ return (
     {/* LEFT SIDEBAR (DATE + OCCUPANCY)    */}
     {/* ---------------------------------- */}
 
-    <div className="w-full lg:w-64 flex flex-col gap-4 lg:gap-6">
+    <aside className="flex w-full flex-col gap-3 lg:sticky lg:top-0 lg:w-56 lg:shrink-0">
 
       {/* DATE CARD */}
-      <div className="bg-white rounded-xl shadow-sm p-6 text-center border border-gray-400">
-        <div className="text-4xl font-bold text-gray-900">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+        <CalendarDays className="mx-auto mb-2 h-5 w-5 text-blue-600" aria-hidden="true" />
+        <div className="text-3xl font-bold text-slate-900">
           {today.toLocaleDateString("en-US", { day: "numeric" })}
         </div>
         <div className="text-gray-500 text-lg -mt-1">
@@ -436,11 +433,11 @@ return (
       </div>
 
       {/* OCCUPANCY CARD */}
-      <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-400 flex flex-col items-center">
+      <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="font-semibold text-gray-700">Occupancy</div>
 
         {/* DONUT (placeholder – plug your chart here) */}
-        <div className="relative mt-4 h-28 w-28" aria-label={`${occupancyPercent}% occupancy`}>
+        <div className="relative mt-3 h-24 w-24" aria-label={`${occupancyPercent}% occupancy`}>
           <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120" aria-hidden="true">
             <circle cx="60" cy="60" r="48" fill="none" stroke="#e2e8f0" strokeWidth="10" />
             <circle
@@ -473,7 +470,7 @@ return (
       </div>
 
       {/* UNITS BREAKDOWN */}
-      <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-400 space-y-3 ">
+      <div className="space-y-2.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="font-semibold text-gray-700">Units Overview</div>
 
         <div className="flex justify-between text-sm">
@@ -492,7 +489,7 @@ return (
         </div>
       </div>
       
-    </div>
+    </aside>
 
     {/* ---------------------------------- */}
     {/* RIGHT MAIN DASHBOARD               */}
@@ -500,33 +497,33 @@ return (
     
 
 
-    <div className="flex-1 flex flex-col gap-6">
+    <main className="grid min-w-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-2">
  
       {/* ---------------------------------- */}
       {/* REVENUE OVERVIEW                   */}
       {/* ---------------------------------- */}
-        <div className="bg-gradient-to-br from-slate-50 to-white border border-slate-300 rounded-2xl p-6 shadow-md">
+        <section className="order-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm xl:col-span-2">
           <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
             💶 Revenue Overview
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {/* Monthly */}
-            <div className="bg-white rounded-xl p-5 border border-blue-400">
+            <div className="rounded-xl border border-blue-200 bg-white p-4">
               <div className="text-sm text-blue-700 font-medium">
                 {today.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
               </div>
-              <div className="mt-2 text-3xl font-semibold text-blue-900">
+              <div className="mt-1 text-2xl font-semibold text-blue-900">
                 €{monthlyExpectedRevenue.toLocaleString()}
               </div>
             </div>
 
             {/* Total */}
-            <div className="bg-white rounded-xl p-5 border border-slate-400">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="text-sm text-slate-600 font-medium">
                 All bookings
               </div>
-              <div className="mt-2 text-3xl font-semibold text-slate-900">
+              <div className="mt-1 text-2xl font-semibold text-slate-900">
                 €{totalExpectedRevenue.toLocaleString()} 
                 
                 <div className="text-xs text-slate-500">
@@ -538,17 +535,17 @@ return (
         
 
             {/* Paid */}
-            <div className="bg-white rounded-xl p-5 border border-emerald-400">
+            <div className="rounded-xl border border-emerald-200 bg-white p-4">
               <div className="text-sm text-emerald-700 font-medium">
                 Fully paid
               </div>
-              <div className="mt-2 text-3xl font-semibold text-emerald-900">
+              <div className="mt-1 text-2xl font-semibold text-emerald-900">
                 €{fullyPaidExpectedRevenue.toLocaleString()}
               </div>
             </div>
           </div>
 
-          <div className="mt-6 border-t border-slate-200 pt-5">
+          <div className="mt-4 border-t border-slate-200 pt-4">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
                 <h4 className="font-semibold text-slate-800">Expected income by year</h4>
@@ -576,53 +573,65 @@ return (
               </div>
             )}
           </div>
-        </div>
+        </section>
        
       {/* ACTIVITY TABS */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-400 p-4 flex flex-wrap gap-4 justify-between sm:justify-start">
+      <section className="order-1 grid w-full grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 shadow-sm sm:grid-cols-3 xl:col-span-2 xl:grid-cols-6">
 
-        <div className="cursor-pointer flex flex-col items-center ">
-          <span className="text-lg font-semibold text-blue-600">{arrivalsToday.length}</span>
-          <span className="text-gray-600 text-sm">Arrivals</span>
+        <div className="flex items-center gap-3 bg-white px-4 py-3">
+          <LogIn className="h-5 w-5 text-blue-600" aria-hidden="true" />
+          <div><div className="text-xl font-semibold text-slate-900">{arrivalsToday.length}</div><div className="text-xs text-slate-500">Arrivals</div></div>
         </div>
 
-        <div className="cursor-pointer flex flex-col items-center">
-          <span className="text-lg font-semibold text-gray-800">{departuresToday.length}</span>
-          <span className="text-gray-600 text-sm">Departures</span>
+        <div className="flex items-center gap-3 bg-white px-4 py-3">
+          <LogOut className="h-5 w-5 text-emerald-600" aria-hidden="true" />
+          <div><div className="text-xl font-semibold text-slate-900">{departuresToday.length}</div><div className="text-xs text-slate-500">Departures</div></div>
         </div>
 
-        <div className="cursor-pointer flex flex-col items-center">
-          <span className="text-lg font-semibold text-gray-800">{occupiedRoomCount}</span>
-          <span className="text-gray-600 text-sm">In-house</span>
+        <div className="flex items-center gap-3 bg-white px-4 py-3">
+          <Users className="h-5 w-5 text-violet-600" aria-hidden="true" />
+          <div><div className="text-xl font-semibold text-slate-900">{occupiedRoomCount}</div><div className="text-xs text-slate-500">In-house</div></div>
         </div>
 
-        <div className="cursor-pointer flex flex-col items-center">
-          <span className="text-lg font-semibold text-gray-800">
-            {Math.max(0, occupiedRoomCount - arrivalsToday.length)}
-          </span>
-          <span className="text-gray-600 text-sm">Stayovers</span>
+        <div className="flex items-center gap-3 bg-white px-4 py-3">
+          <BedDouble className="h-5 w-5 text-cyan-600" aria-hidden="true" />
+          <div><div className="text-xl font-semibold text-slate-900">{Math.max(0, rooms.length - occupiedRoomCount)}</div><div className="text-xs text-slate-500">Available</div></div>
         </div>
-      </div>
+
+        <div className="flex items-center gap-3 bg-white px-4 py-3">
+          <WalletCards className="h-5 w-5 text-amber-600" aria-hidden="true" />
+          <div><div className="text-xl font-semibold text-slate-900">{formatCurrency(outstandingToday)}</div><div className="text-xs text-slate-500">Due today</div></div>
+        </div>
+
+        <div className="flex items-center gap-3 bg-white px-4 py-3">
+          <Sparkles className="h-5 w-5 text-rose-500" aria-hidden="true" />
+          <div>
+            <div className="text-xl font-semibold text-slate-900">{arrivalAttentionCount}</div>
+            <div className="text-xs text-slate-500">Arrival flags</div>
+          </div>
+        </div>
+      </section>
 
       {/* ---------------------------------- */}
       {/* ARRIVALS TABLE                     */}
       {/* ---------------------------------- */}
       
  
-      <div className="bg-white rounded-xl shadow-md border border-gray-400">
-        <div className="px-4 py-2 bg-gray-100 border-b text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <span className="text-blue-600">🛬</span> Arrivals Today
+      <section className="order-2 min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex items-center gap-2 font-semibold text-slate-900"><LogIn className="h-5 w-5 text-blue-600" aria-hidden="true" /> Arrivals today</div>
+          <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{arrivalsToday.length}</span>
         </div>
 
         {arrivalsToday.length === 0 ? (
           <div className="p-6 text-gray-500 text-sm">No arrivals today.</div>
         ) : (
-          <div className="divide-y">
+          <div className="max-h-[28rem] divide-y divide-slate-100 overflow-y-auto">
             {arrivalsToday.map((b) => {
               const notes = parseNotes(b.notes);
 
               return (
-                <div key={b.id} className="p-4 flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <div key={b.id} className="flex flex-col gap-2 p-3.5 sm:flex-row sm:gap-3">
                   {/* LEFT: guest + stay + notes */}
                   <div className="flex-1">
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
@@ -634,7 +643,7 @@ return (
                       </div>
 
                       <div className="text-xs text-gray-500 whitespace-nowrap">
-                        {b.adults} adults, {b.kids} kids
+                        {formatGuests(b)}
                       </div>
                     </div>
 
@@ -667,7 +676,7 @@ return (
             })}
           </div>
         )}
-      </div>
+      </section>
 
 
 
@@ -675,20 +684,21 @@ return (
       {/* DEPARTURES TABLE                   */}
       {/* ---------------------------------- */}
    
-      <div className="bg-white rounded-xl shadow-md border border-gray-400">
-        <div className="px-4 py-2 bg-gray-100 border-b text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <span className="text-green-600">🛫</span> Departures Today
+      <section className="order-3 min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex items-center gap-2 font-semibold text-slate-900"><LogOut className="h-5 w-5 text-emerald-600" aria-hidden="true" /> Departures today</div>
+          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">{departuresToday.length}</span>
         </div>
 
         {departuresToday.length === 0 ? (
           <div className="p-6 text-gray-500 text-sm">No departures today.</div>
         ) : (
-          <div className="divide-y">
+          <div className="max-h-[28rem] divide-y divide-slate-100 overflow-y-auto">
             {departuresToday.map((b) => {
               const notes = parseNotes(b.notes);
 
               return (
-                <div key={b.id} className="p-4 flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <div key={b.id} className="flex flex-col gap-2 p-3.5 sm:flex-row sm:gap-3">
                   {/* LEFT: guest + stay + notes */}
                   <div className="flex-1">
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
@@ -700,7 +710,7 @@ return (
                       </div>
 
                       <div className="text-xs text-gray-500 whitespace-nowrap">
-                        {b.adults} adults, {b.kids} kids
+                        {formatGuests(b)}
                       </div>
                     </div>
 
@@ -728,126 +738,12 @@ return (
             })}
           </div>
         )}
-      </div>
+      </section>
 
-          
-    <div className="rounded-xl border border-slate-300 bg-white p-5 shadow-sm">
-  <h3 className="text-sm font-semibold text-slate-700 mb-4">
-    Today at a glance
-  </h3>
-
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-
-    {/* Next arrival */}
-    <div>
-      <span className="text-slate-500">🛬 Next arrival</span>
-      <div className="font-medium text-slate-800">
-        {nextArrival
-          ? `${nextArrival.guestName} — Room ${nextArrival.room}`
-          : "No arrivals today"}
-      </div>
-      {nextArrival?.flight && (
-        <div className="text-xs text-slate-500">
-          Flight: {nextArrival.flight}
-        </div>
-      )}
-    </div>
-
-    {/* Next departure */}
-    <div>
-      <span className="text-slate-500">🛫 Next departure</span>
-      <div className="font-medium text-slate-800">
-        {nextDeparture
-          ? `${nextDeparture.guestName} — Room ${nextDeparture.room}`
-          : "No departures today"}
-      </div>
-    </div>
-
-    {/* Outstanding balance */}
-    <div>
-      <span className="text-slate-500">💶 Outstanding today</span>
-      <div className="font-semibold text-sky-700">
-        €{outstandingToday.toLocaleString()}
-      </div>
-    </div>
-
-    {/* Notes summary */}
-    <div>
-      <span className="text-slate-500">📝 Special notes</span>
-      <div className="text-slate-700">
-        {notesSummary.flights > 0 && `${notesSummary.flights} flights`}
-        {notesSummary.lateArrivals > 0 && ` · ${notesSummary.lateArrivals} late arrivals`}
-        {notesSummary.deposits > 0 && ` · ${notesSummary.deposits} deposits`}
-        {(notesSummary.flights +
-          notesSummary.lateArrivals +
-          notesSummary.deposits) === 0 && "None"}
-      </div>
-    </div>
-
-  </div>
-</div>
-
-    </div>
+    </main>
     
   </div>
   
 );
 
-}
-
-function StatCard({ label, value, accent }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-4 flex items-center justify-between">
-      <div>
-        <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="text-2xl font-semibold">{value}</p>
-      </div>
-      <div className={`w-10 h-10 rounded-full ${accent} opacity-80`} />
-    </div>
-  )
-}
-
-function ListCard({ title, items }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-4">
-      <h3 className="font-semibold mb-2 text-blue-700">{title}</h3>
-
-      {items.length === 0 && (
-        <p className="text-sm text-slate-400">No records.</p>
-      )}
-
-      <div className="space-y-3">
-        {items.map((b) => {
-          const parsedNotes = parseNotes(b.notes);
-
-          return (
-            <div
-              key={b.id}
-              className="border-b pb-3 last:border-none"
-            >
-              {/* Booking header */}
-              <div className="flex justify-between items-center">
-                <span className="font-medium">{b.guestName}</span>
-                <span className="text-xs text-slate-500">
-                  Room {b.room} • {b.checkIn} → {b.checkOut}
-                </span>
-              </div>
-
-              {/* Notes */}
-              {parsedNotes.length > 0 && (
-                <ul className="mt-2 pl-4 space-y-1">
-                  {parsedNotes.map((n, i) => (
-                    <li key={i} className="text-sm text-slate-700 flex gap-2">
-                      <span>{n.icon || "•"}</span>
-                      <span>{n.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
