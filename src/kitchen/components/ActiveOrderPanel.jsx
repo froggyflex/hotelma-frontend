@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { enqueuePrintJob } from "../services/printQueue";
 import { buildThermalPrint } from "../utils/buildThermalPrint";
 import { markOrderPrinted } from "../services/kitchenOrdersApi";
+import { printSafely } from "../services/printService";
 import { useTranslation } from "react-i18next";
 
 /* ---------------- HELPERS ---------------- */
@@ -53,17 +54,24 @@ export default function ActiveOrderPanel({
 
     enqueuePrintJob({
       print: async () => {
-        if (!window.AndroidPrinter?.printText) {
-          throw new Error("PRINTER_NOT_AVAILABLE");
+        if (window.AndroidPrinter?.printText) {
+          const res = JSON.parse(
+            window.AndroidPrinter.printText(printPayload)
+          );
+
+          if (!res.ok) {
+            throw new Error(res.code || "PRINT_FAILED");
+          }
+
+          return;
         }
 
-        const res = JSON.parse(
-          window.AndroidPrinter.printText(printPayload)
-        );
-
-        if (!res.ok) {
-          throw new Error(res.code);
+        if (window.AndroidPrinter?.print) {
+          await printSafely(printPayload);
+          return;
         }
+
+        throw new Error("ANDROID_BRIDGE_NOT_AVAILABLE");
       },
 
       onSuccess: async () => {
