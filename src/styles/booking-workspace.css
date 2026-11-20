@@ -4,18 +4,20 @@
 .booking-expand { display: none; }
 .booking-search { display: flex; align-items: center; gap: 7px; flex: 1 1 170px; min-width: 0; padding-left: 10px; border: 1px solid #c6d5e4; border-radius: 8px; color: #526579; }
 .booking-search .workspace-input { width: 100%; border: none; }
-.booking-timeline { display: grid; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--workspace-border); background: #f8fafd; }
+.booking-timeline { --booking-heat-color: #8ab5ef; display: grid; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--workspace-border); background: #f8fafd; }
 .booking-timeline-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; min-width: 0; }
+.booking-timeline-key { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
 .booking-timeline-label { font-size: 12px; }
+.booking-heat-legend { display: inline-flex; align-items: center; gap: 5px; color: var(--workspace-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.booking-heat-ramp { width: 48px; height: 9px; border: 1px solid #abc6e8; border-radius: 4px; background: linear-gradient(to right, white, var(--booking-heat-color)); }
 .booking-years { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .booking-year { min-height: 36px; }
 .booking-year[aria-pressed="true"] { color: #174b9a; border-color: #abc6ef; background: #e6efff; }
 .booking-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; }
-.booking-month { display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 7px; padding: 4px; border: 1px solid var(--workspace-border); border-radius: 8px; color: var(--workspace-ink); background: white; font-size: 13px; font-weight: 600; }
-.booking-month-count { min-width: 22px; padding: 2px 4px; border-radius: 5px; color: #385675; background: #eaf1fa; font-size: 12px; line-height: 1.25; font-variant-numeric: tabular-nums; }
-.booking-month:hover { border-color: #abc6ef; background: #eef5fc; }
-.booking-month[aria-pressed="true"] { border-color: var(--workspace-blue); background: var(--workspace-blue); color: white; }
-.booking-month[aria-pressed="true"] .booking-month-count { background: #fff; color: #174b9a; }
+.booking-month { display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 7px; padding: 4px; border: 1px solid var(--workspace-border); border-radius: 8px; color: var(--workspace-ink); background: white; background: color-mix(in srgb, white, var(--booking-heat-color) var(--booking-month-heat)); font-size: 13px; font-weight: 600; }
+.booking-month-count { min-width: 22px; padding: 2px 4px; border-radius: 5px; color: #2d4b6b; background: #eaf2fc; font-size: 12px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.booking-month:hover { border-color: #5884be; }
+.booking-month[aria-pressed="true"] { border-color: var(--workspace-blue); box-shadow: inset 0 0 0 1px var(--workspace-blue); font-weight: 700; }
 .booking-period-navigation { display: flex; align-items: center; gap: 10px; }
 .booking-period-navigation h2 { text-align: center; min-width: 135px; font-variant-numeric: tabular-nums; }
 .booking-list-row { width: 100%; text-align: left; }

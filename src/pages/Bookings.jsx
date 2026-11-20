@@ -21,6 +21,7 @@ const months = Array.from({ length: 12 }, (_, month) => {
 
 function BookingTimeline({ date, years, counts, onSelectYear, onSelectMonth }) {
   const year = date.getFullYear();
+  const peak = Math.max(0, ...(counts ?? []));
 
   return (
     <div className="booking-timeline">
@@ -38,11 +39,21 @@ function BookingTimeline({ date, years, counts, onSelectYear, onSelectMonth }) {
             </button>
           ))}
         </div>
-        <span className="workspace-muted booking-timeline-label">Bookings by check-in month</span>
+        <div className="booking-timeline-key">
+          <span className="workspace-muted booking-timeline-label">Bookings by check-in month</span>
+          {peak > 0 && (
+            <span className="booking-heat-legend" role="img" aria-label={"Booking heatmap for " + year + ", 0 to " + peak + " bookings per month"}>
+              <span aria-hidden="true">0</span>
+              <span className="booking-heat-ramp" aria-hidden="true" />
+              <span aria-hidden="true">{peak}</span>
+            </span>
+          )}
+        </div>
       </div>
       <div className="booking-months" role="group" aria-label={year + " booking months"}>
         {months.map(({ short, full }, month) => {
           const count = counts?.[month] ?? 0;
+          const heat = count > 0 ? Math.round(18 + 82 * (count / peak)) : 0;
           const label = full + " " + year + ", " + count + (count === 1 ? " booking" : " bookings");
           return (
             <button
@@ -52,6 +63,7 @@ function BookingTimeline({ date, years, counts, onSelectYear, onSelectMonth }) {
               aria-pressed={month === date.getMonth()}
               aria-label={label}
               title={label}
+              style={{ "--booking-month-heat": heat + "%" }}
               onClick={() => onSelectMonth(month)}
             >
               <span>{short}</span>
