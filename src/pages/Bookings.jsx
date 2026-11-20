@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { addDays, addMonths, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight, List, Plus, Search } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, List, Maximize2, Minimize2, Plus, Search } from "lucide-react";
 import { DataFeedback, useWorkspaceData, WorkspaceDialog } from "../components/Workspace";
 import BookingAvailability from "../components/BookingAvailability";
 import BookingCalendar from "../components/BookingCalendar";
@@ -14,6 +14,55 @@ import { API, balanceDue, errorMessage, formatMoney, isActiveBooking, overlapsSt
 const URL = API + "/bookings";
 const toDate = (date) => format(date, "yyyy-MM-dd");
 const humanDate = (date) => format(parseISO(date), "d MMM yyyy");
+const months = Array.from({ length: 12 }, (_, month) => {
+  const date = new Date(2000, month, 1);
+  return { short: format(date, "MMM"), full: format(date, "MMMM") };
+});
+
+function BookingTimeline({ date, years, counts, onSelectYear, onSelectMonth }) {
+  const year = date.getFullYear();
+
+  return (
+    <div className="booking-timeline">
+      <div className="booking-timeline-heading">
+        <div className="booking-years" role="group" aria-label="Booking year">
+          {years.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className="workspace-button booking-year"
+              aria-pressed={option === year}
+              onClick={() => onSelectYear(option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        <span className="workspace-muted booking-timeline-label">Bookings by check-in month</span>
+      </div>
+      <div className="booking-months" role="group" aria-label={year + " booking months"}>
+        {months.map(({ short, full }, month) => {
+          const count = counts?.[month] ?? 0;
+          const label = full + " " + year + ", " + count + (count === 1 ? " booking" : " bookings");
+          return (
+            <button
+              key={full}
+              type="button"
+              className="booking-month"
+              aria-pressed={month === date.getMonth()}
+              aria-label={label}
+              title={label}
+              onClick={() => onSelectMonth(month)}
+            >
+              <span>{short}</span>
+              <span className="booking-month-count">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function useMobileAgenda() {
   const query = "(max-width: 740px)";
@@ -51,6 +100,7 @@ export default function Bookings() {
   const [todayJump, setTodayJump] = useState(0);
   const [scale, setScale] = useState("month");
   const [view, setView] = useState("calendar");
+  const [expanded, setExpanded] = useState(false);
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState(false);
   const [formSeed, setFormSeed] = useState(null);
@@ -65,6 +115,18 @@ export default function Bookings() {
   const { data, setData } = resource;
   const bookings = data?.bookings;
   const active = useMemo(() => (bookings || []).filter(isActiveBooking), [bookings]);
+  const timelineBookings = history ? bookings : active;
+  const monthlyCounts = useMemo(() => {
+    const counts = new Map();
+    for (const booking of timelineBookings || []) {
+      const checkIn = parseISO(booking.checkIn?.slice(0, 10) || "");
+      if (!Number.isFinite(checkIn.getTime())) continue;
+      const year = checkIn.getFullYear();
+      if (!counts.has(year)) counts.set(year, Array(12).fill(0));
+      counts.get(year)[checkIn.getMonth()] += 1;
+    }
+    return counts;
+  }, [timelineBookings]);
   const start = scale === "week" ? startOfWeek(date, { weekStartsOn: 1 }) : startOfMonth(date);
   const end = scale === "week" ? addDays(start, 7) : addMonths(start, 1);
   const searching = search.trim().toLowerCase();
@@ -83,6 +145,9 @@ export default function Bookings() {
     ...(bookings || []).map((booking) => Number(booking.checkIn?.slice(0, 4))).filter((year) => year >= 1900),
   ])].sort((a, b) => a - b);
   const unavailable = !data || resource.loading || Boolean(resource.error);
+  const periodLabel = scale === "week"
+    ? humanDate(toDate(start)) + " – " + humanDate(toDate(addDays(end, -1)))
+    : format(date, "MMMM yyyy");
 
   function closeEditor() {
     setParams({}, { replace: true });
@@ -131,11 +196,17 @@ export default function Bookings() {
   }
 
   function shiftPeriod(amount) {
-    setDate((current) => scale === "week" ? addDays(current, 7 * amount) : addMonths(current, amount));
+    setDate((current) => scale === "week" ? addDays(current, 7 * amount) : addMonths(startOfMonth(current), amount));
+  }
+
+  function selectMonth(year, month) {
+    setDate(new Date(year, month, 1));
+    setScale("month");
+    setSearch("");
   }
 
   return (
-    <div className="workspace">
+    <div className={"workspace bookings-workspace" + (expanded ? " bookings-workspace-expanded" : "")}>
       <header className="workspace-heading">
         <h1>Bookings</h1>
         <div className="workspace-actions">
@@ -150,30 +221,38 @@ export default function Bookings() {
       {data && (
         <section className="workspace-panel">
           <div className="workspace-toolbar booking-toolbar">
-            <div className="workspace-actions booking-period-controls">
-              <button className="workspace-button" onClick={() => { setDate(parseISO(todayAtHotel())); setTodayJump((current) => current + 1); }}>Today</button>
-              <button className="workspace-icon" aria-label={"Previous " + scale} onClick={() => shiftPeriod(-1)}><ChevronLeft size={19} /></button>
-              <button className="workspace-icon" aria-label={"Next " + scale} onClick={() => shiftPeriod(1)}><ChevronRight size={19} /></button>
-              <select className="workspace-input" aria-label="Month" value={date.getMonth()} onChange={(event) => setDate(new Date(date.getFullYear(), Number(event.target.value), 1))}>
-                {Array.from({ length: 12 }, (_, month) => <option key={month} value={month}>{format(new Date(2000, month, 1), "MMM")}</option>)}
-              </select>
-              <select className="workspace-input" aria-label="Year" value={date.getFullYear()} onChange={(event) => setDate(new Date(Number(event.target.value), date.getMonth(), 1))}>
-                {years.map((year) => <option key={year}>{year}</option>)}
-              </select>
-            </div>
+            <label className="booking-search"><Search size={17} aria-hidden="true" />
+              <input className="workspace-input" aria-label="Search all bookings" placeholder="Search all bookings" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </label>
             <div className="workspace-actions">
+              <button className="workspace-button" onClick={() => { setDate(parseISO(todayAtHotel())); setTodayJump((current) => current + 1); setSearch(""); }}>Today</button>
               <select className="workspace-input" aria-label="Calendar range" value={scale} onChange={(event) => setScale(event.target.value)}><option value="month">Month</option><option value="week">Week</option></select>
               {!mobile && <>
                 <button className="workspace-icon" title="Calendar view" aria-label="Calendar view" aria-pressed={!listView} onClick={() => { setView("calendar"); setHistory(false); setSearch(""); }}><CalendarDays size={18} /></button>
                 <button className="workspace-icon" title="List view" aria-label="List view" aria-pressed={listView} onClick={() => setView("list")}><List size={18} /></button>
+                {(!listView || expanded) && (
+                  <button type="button" className="workspace-icon booking-expand" title={expanded ? "Restore sidebar" : "Expand calendar"} aria-label={expanded ? "Restore sidebar" : "Expand calendar"} onClick={() => setExpanded((current) => !current)}>
+                    {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                  </button>
+                )}
               </>}
             </div>
-            <label className="booking-search"><Search size={17} aria-hidden="true" />
-              <input className="workspace-input" aria-label="Search all bookings" placeholder="Search all bookings" value={search} onChange={(event) => setSearch(event.target.value)} />
-            </label>
           </div>
-          <div className="workspace-panel-header">
-            <h2>{searching ? visible.length + " matching bookings" : scale === "week" ? humanDate(toDate(start)) + " – " + humanDate(toDate(addDays(end, -1))) : format(date, "MMMM yyyy")}</h2>
+          <BookingTimeline
+            date={date}
+            years={years}
+            counts={monthlyCounts.get(date.getFullYear())}
+            onSelectYear={(year) => selectMonth(year, date.getMonth())}
+            onSelectMonth={(month) => selectMonth(date.getFullYear(), month)}
+          />
+          <div className="workspace-panel-header booking-period">
+            {searching ? <h2>{visible.length} matching bookings</h2> : (
+              <div className="booking-period-navigation" role="group" aria-label="Calendar navigation">
+                <button className="workspace-icon" aria-label={"Previous " + scale} title={"Previous " + scale} onClick={() => shiftPeriod(-1)}><ChevronLeft size={20} /></button>
+                <h2 aria-live="polite">{periodLabel}</h2>
+                <button className="workspace-icon" aria-label={"Next " + scale} title={"Next " + scale} onClick={() => shiftPeriod(1)}><ChevronRight size={20} /></button>
+              </div>
+            )}
             {!searching && <label className="workspace-muted flex items-center gap-2"><input type="checkbox" checked={history} onChange={(event) => setHistory(event.target.checked)} /> Include no-shows</label>}
           </div>
           {listView ? <BookingList bookings={visible} onOpen={(booking) => setParams({ booking: booking.id })} searching={searching} /> :

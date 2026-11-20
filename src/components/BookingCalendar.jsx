@@ -33,8 +33,8 @@ export default function BookingCalendar({ start, end, focusDate, todayJump, room
   }
 
   return (
-    <div ref={scroller} className="booking-calendar" aria-label="Room calendar">
-      <div className="booking-calendar-grid" style={{ gridTemplateColumns: "100px repeat(" + days.length + ", minmax(42px, 1fr))" }}>
+    <div ref={scroller} className="booking-calendar" role="region" aria-label="Room calendar" tabIndex={0}>
+      <div className="booking-calendar-grid" style={{ "--booking-days": days.length }}>
         <div className="booking-calendar-corner">Rooms</div>
         {days.map((day) => (
           <div key={dateKey(day)} data-date={dateKey(day)} className={"booking-calendar-day" + (dateKey(day) === today ? " booking-calendar-today" : "")}>
@@ -70,7 +70,7 @@ export default function BookingCalendar({ start, end, focusDate, todayJump, room
                     onClick={() => onCreate({ room: room.name, checkIn: key, checkOut: dateKey(addDays(day, 1)) })} />}
                 </div>;
               })}
-              <div className="booking-calendar-bars" style={{ gridTemplateColumns: "repeat(" + days.length + ", minmax(0, 1fr))" }}>
+              <div className="booking-calendar-bars">
                 {bars.map(({ booking, first, last, lane, conflict }) => (
                   <button key={booking.id} type="button" draggable
                     onDragStart={(event) => {
