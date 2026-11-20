@@ -128,4 +128,3 @@ export default function CreateInvoice() {
     {preview && payload && booking && <InvoicePreview payload={payload} booking={booking} close={() => setPreview(false)} onSubmitted={() => navigate("/invoices")} />}
   </div>;
 }
-

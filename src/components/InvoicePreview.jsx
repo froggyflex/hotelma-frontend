@@ -19,7 +19,8 @@ export default function InvoicePreview({ payload, booking, mark, close, onSubmit
   const header = payload?.invoiceHeader || {};
   const customer = payload?.customer || {};
   const lines = Array.isArray(payload?.invoiceDetails) ? payload.invoiceDetails : [];
-  const canDownload = Boolean(header.issueDate && lines.length >= 2 && Number.isFinite(Number(payload?.totalAmount)));
+  const canDownload = Boolean(header.issueDate && lines.length >= 2 &&
+    payload?.totalAmount != null && Number.isFinite(Number(payload.totalAmount)));
 
   async function submit() {
     if (submitting || currentMark || history) return;
@@ -31,128 +32,127 @@ export default function InvoicePreview({ payload, booking, mark, close, onSubmit
       setSent(data);
     } catch (failure) {
       const response = failure.response?.data;
-      setError(response?.errors?.map((entry) => entry.message).filter(Boolean).join(" ") ||
+      const errors = Array.isArray(response?.errors) ? response.errors : [];
+      setError(errors.map((entry) => entry?.message).filter(Boolean).join(" ") ||
         "AADE submission could not be confirmed. Check the invoice register before trying again.");
     } finally {
       setSubmitting(false);
     }
   }
 
-const generatePDF = async () => {
-  const doc = new jsPDF();
+  async function generatePDF() {
+    const doc = new jsPDF();
 
-  const issuer = payload.issuer || {};
-  
-  const bookingInfo = payload.bookingInfo || booking;
-  const accom = payload.invoiceDetails[0] || {};
-  const taxLine = payload.invoiceDetails[1] || {};
-  const markA = currentMark || "PENDING";
+    const issuer = payload.issuer || {};
 
-  // ---------- HEADER ----------
-  doc.setFontSize(18);
-  doc.text("INVOICE", 14, 18);
+    const bookingInfo = payload.bookingInfo || booking;
+    const accom = payload.invoiceDetails[0] || {};
+    const taxLine = payload.invoiceDetails[1] || {};
+    const markA = currentMark || "PENDING";
 
-  // QR
-  const qrData = `MARK:${markA}|AFM:${issuer.vatNumber}|DATE:${payload.invoiceHeader.issueDate}|AMOUNT:${Number(payload.totalAmount || 0).toFixed(2)}`;
-  const qrImage = await QRCode.toDataURL(qrData);
-  doc.addImage(qrImage, "PNG", 155, 10, 40, 40);
+    // ---------- HEADER ----------
+    doc.setFontSize(18);
+    doc.text("INVOICE", 14, 18);
 
-  // ---------- ISSUER DETAILS ----------
-  doc.setFontSize(11);
-  doc.text("Issuer:", 14, 32);
-  doc.setFontSize(10);
-  doc.text(issuer.name || "", 14, 38);
-  if (issuer.address) doc.text(issuer.address, 14, 43);
-  if (issuer.city) doc.text(`${issuer.city}`, 14, 48);
-  if (issuer.postalCode) doc.text(`Postal Code: ${issuer.postalCode}`, 14, 53);
-  if (issuer.country) doc.text(`${issuer.country}`, 14, 58);
-  if (issuer.vatNumber) doc.text(`AFM: ${issuer.vatNumber}`, 14, 63);
-  if (issuer.doy) doc.text(`DOY: ${issuer.doy}`, 14, 68);
-  if (issuer.email) doc.text(`Email: ${issuer.email}`, 14, 73);
-  if (issuer.phone) doc.text(`Phone: ${issuer.phone}`, 14, 78);
+    // QR
+    const qrData = `MARK:${markA}|AFM:${issuer.vatNumber}|DATE:${payload.invoiceHeader.issueDate}|AMOUNT:${Number(payload.totalAmount || 0).toFixed(2)}`;
+    const qrImage = await QRCode.toDataURL(qrData);
+    doc.addImage(qrImage, "PNG", 155, 10, 40, 40);
 
-  // ---------- CUSTOMER ----------
-  doc.setFontSize(11);
-  doc.text("Customer:", 14, 92);
-  doc.setFontSize(10);
-  doc.text(customer.name || "-", 14, 98);
-  if (customer.address) doc.text(customer.address, 14, 103);
-  if (customer.city) doc.text(customer.city, 14, 108);
-  if (customer.vatNumber) doc.text(`AFM: ${customer.vatNumber}`, 14, 113);
-  if (customer.idDoc)
-    doc.text(`ID/Passport: ${customer.idDoc}`, 14, 118);
+    // ---------- ISSUER DETAILS ----------
+    doc.setFontSize(11);
+    doc.text("Issuer:", 14, 32);
+    doc.setFontSize(10);
+    doc.text(issuer.name || "", 14, 38);
+    if (issuer.address) doc.text(issuer.address, 14, 43);
+    if (issuer.city) doc.text(`${issuer.city}`, 14, 48);
+    if (issuer.postalCode) doc.text(`Postal Code: ${issuer.postalCode}`, 14, 53);
+    if (issuer.country) doc.text(`${issuer.country}`, 14, 58);
+    if (issuer.vatNumber) doc.text(`AFM: ${issuer.vatNumber}`, 14, 63);
+    if (issuer.doy) doc.text(`DOY: ${issuer.doy}`, 14, 68);
+    if (issuer.email) doc.text(`Email: ${issuer.email}`, 14, 73);
+    if (issuer.phone) doc.text(`Phone: ${issuer.phone}`, 14, 78);
 
-  // ---------- INVOICE META ----------
-  doc.setFontSize(11);
-  doc.text("Invoice Details:", 110, 32);
-  doc.setFontSize(10);
-  doc.text(`Invoice Type: ${payload.invoiceHeader.invoiceType}`, 110, 38);
-  doc.text(`Issue Date: ${payload.invoiceHeader.issueDate}`, 110, 43);
-  doc.text(`AA (Number): ${sent?.aa || header.aa || "-"}`, 110, 48);
-  doc.text(`MARK: ${markA}`, 110, 53);
+    // ---------- CUSTOMER ----------
+    doc.setFontSize(11);
+    doc.text("Customer:", 14, 92);
+    doc.setFontSize(10);
+    doc.text(customer.name || "-", 14, 98);
+    if (customer.address) doc.text(customer.address, 14, 103);
+    if (customer.city) doc.text(customer.city, 14, 108);
+    if (customer.vatNumber) doc.text(`AFM: ${customer.vatNumber}`, 14, 113);
+    if (customer.idDoc)
+      doc.text(`ID/Passport: ${customer.idDoc}`, 14, 118);
 
-  doc.text(`Room: ${bookingInfo.room || "-"}`, 110, 63);
-  doc.text(`Check-in: ${bookingInfo.checkIn || "-"}`, 110, 68);
-  doc.text(`Check-out: ${bookingInfo.checkOut || "-"}`, 110, 73);
-  doc.text(`Nights: ${payload.nights}`, 110, 78);
-  doc.text(`Channel: ${bookingInfo.channel || "-"}`, 110, 83);
+    // ---------- INVOICE META ----------
+    doc.setFontSize(11);
+    doc.text("Invoice Details:", 110, 32);
+    doc.setFontSize(10);
+    doc.text(`Invoice Type: ${payload.invoiceHeader.invoiceType}`, 110, 38);
+    doc.text(`Issue Date: ${payload.invoiceHeader.issueDate}`, 110, 43);
+    doc.text(`AA (Number): ${sent?.aa || header.aa || "-"}`, 110, 48);
+    doc.text(`MARK: ${markA}`, 110, 53);
 
-  // ---------- TABLE ----------
-  autoTable(doc, {
-    startY: 130,
-    head: [
-      ["Description", "Qty", "Unit (€)", "Net (€)", "VAT (€)", "Total (€)"],
-    ],
-    body: [
-      [
-        accom.description || "Accommodation",
-        payload.nights,
-        Number(payload.rate || 0).toFixed(2),
-        Number(accom.netValue || 0).toFixed(2),
-        Number(accom.vatAmount || 0).toFixed(2),
-        (accom.netValue + accom.vatAmount).toFixed(2),
+    doc.text(`Room: ${bookingInfo.room || "-"}`, 110, 63);
+    doc.text(`Check-in: ${bookingInfo.checkIn || "-"}`, 110, 68);
+    doc.text(`Check-out: ${bookingInfo.checkOut || "-"}`, 110, 73);
+    doc.text(`Nights: ${payload.nights}`, 110, 78);
+    doc.text(`Channel: ${bookingInfo.channel || "-"}`, 110, 83);
+
+    // ---------- TABLE ----------
+    autoTable(doc, {
+      startY: 130,
+      head: [
+        ["Description", "Qty", "Unit (€)", "Net (€)", "VAT (€)", "Total (€)"],
       ],
-      [
-        taxLine.description || "Accommodation tax",
-        payload.nights,
-        Number(taxLine.unitPrice || 0).toFixed(2),
-        Number(taxLine.netValue || 0).toFixed(2),
-        "0.00",
-        Number(taxLine.netValue || 0).toFixed(2),
+      body: [
+        [
+          accom.description || "Accommodation",
+          payload.nights,
+          Number(payload.rate || 0).toFixed(2),
+          Number(accom.netValue || 0).toFixed(2),
+          Number(accom.vatAmount || 0).toFixed(2),
+          (Number(accom.netValue || 0) + Number(accom.vatAmount || 0)).toFixed(2),
+        ],
+        [
+          taxLine.description || "Accommodation tax",
+          payload.nights,
+          Number(taxLine.unitPrice || 0).toFixed(2),
+          Number(taxLine.netValue || 0).toFixed(2),
+          "0.00",
+          Number(taxLine.netValue || 0).toFixed(2),
+        ],
       ],
-    ],
-  });
+    });
 
-  const finalY = doc.lastAutoTable.finalY + 10;
+    const finalY = doc.lastAutoTable.finalY + 10;
 
-  // ---------- TOTALS BOX ----------
-  doc.setFontSize(11);
-  doc.text("Totals:", 14, finalY);
+    // ---------- TOTALS BOX ----------
+    doc.setFontSize(11);
+    doc.text("Totals:", 14, finalY);
 
-  doc.setFontSize(10);
-  doc.text(
-    `Net Total: ${(accom.netValue + taxLine.netValue).toFixed(2)} €`,
-    14,
-    finalY + 6
-  );
-  doc.text(`VAT Total: ${Number(accom.vatAmount || 0).toFixed(2)} €`, 14, finalY + 12);
-  doc.text(`Other Taxes: ${Number(taxLine.netValue || 0).toFixed(2)} €`, 14, finalY + 18);
-  doc.text(`Total Amount: ${Number(payload.totalAmount || 0).toFixed(2)} €`, 14, finalY + 24);
+    doc.setFontSize(10);
+    doc.text(
+      `Net Total: ${(Number(accom.netValue || 0) + Number(taxLine.netValue || 0)).toFixed(2)} €`,
+      14,
+      finalY + 6
+    );
+    doc.text(`VAT Total: ${Number(accom.vatAmount || 0).toFixed(2)} €`, 14, finalY + 12);
+    doc.text(`Other Taxes: ${Number(taxLine.netValue || 0).toFixed(2)} €`, 14, finalY + 18);
+    doc.text(`Total Amount: ${Number(payload.totalAmount || 0).toFixed(2)} €`, 14, finalY + 24);
 
-  // ---------- FOOTER ----------
-  doc.setFontSize(9);
-  doc.text(
-    currentMark ? `Submitted to AADE. MARK: ${markA}` : "Draft invoice. Pending submission to AADE.",
-    14,
-    finalY + 35
-  );
+    // ---------- FOOTER ----------
+    doc.setFontSize(9);
+    doc.text(
+      currentMark ? `Submitted to AADE. MARK: ${markA}` : "Draft invoice. Pending submission to AADE.",
+      14,
+      finalY + 35
+    );
 
-  doc.save(
-    `invoice_${customer.name}_${payload.invoiceHeader.issueDate}.pdf`
-  );
-};
-
-
+    doc.save(
+      `invoice_${customer.name}_${payload.invoiceHeader.issueDate}.pdf`
+    );
+  }
 
   async function download() {
     try {

@@ -108,27 +108,27 @@ export default function BookingExports() {
       {/* FILTERS */}
       <div className="workspace-panel workspace-panel-body">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input
+          <label className="workspace-field">Guest name<input
             className="workspace-input"
             aria-label="Search guest"
             placeholder="Search guest"
             value={search}
             onChange={e => setSearch(e.target.value)}
-          />
-          <input
+          /></label>
+          <label className="workspace-field">Earliest check-in<input
             type="date"
             className="workspace-input"
             aria-label="Earliest check-in"
             value={fromDate}
             onChange={e => setFromDate(e.target.value)}
-          />
-          <input
+          /></label>
+          <label className="workspace-field">Latest check-out<input
             type="date"
             className="workspace-input"
             aria-label="Latest check-out"
             value={toDate}
             onChange={e => setToDate(e.target.value)}
-          />
+          /></label>
         </div>
       </div>
 
