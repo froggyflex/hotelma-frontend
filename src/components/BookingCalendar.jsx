@@ -4,7 +4,18 @@ import { overlapsStay, todayAtHotel } from "../utils/operations";
 
 const dateKey = (date) => format(date, "yyyy-MM-dd");
 
-export default function BookingCalendar({ start, end, focusDate, todayJump, rooms, bookings, onOpen, onCreate, onMove }) {
+function groupRoomBookings(bookings) {
+  const groups = new Map();
+  for (const booking of bookings) {
+    const name = booking.guestName?.trim().replace(/\s+/g, " ").toLowerCase();
+    const key = name ? JSON.stringify([name, booking.checkIn, booking.checkOut]) : booking.id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(booking);
+  }
+  return Array.from(groups.values());
+}
+
+export default function BookingCalendar({ start, end, focusDate, todayJump, rooms, bookings, onOpen, onReviewMatching, onCreate, onMove }) {
   const today = todayAtHotel();
   const drag = useRef(null);
   const scroller = useRef(null);
@@ -43,15 +54,17 @@ export default function BookingCalendar({ start, end, focusDate, todayJump, room
         ))}
         {rooms.map((room) => {
           const roomBookings = bookings.filter((booking) => booking.room === room.name);
+          const groups = groupRoomBookings(roomBookings);
           const laneEnds = [];
-          const bars = roomBookings.map((booking) => {
+          const bars = groups.map((records) => {
+            const [booking] = records;
             const first = Math.max(0, differenceInCalendarDays(parseISO(booking.checkIn), start));
             const last = Math.min(days.length, differenceInCalendarDays(parseISO(booking.checkOut), start));
             const freeLane = laneEnds.findIndex((laneEnd) => laneEnd <= first);
             const lane = freeLane < 0 ? laneEnds.length : freeLane;
             laneEnds[lane] = last;
-            const conflict = roomBookings.some((other) => other.id !== booking.id && overlapsStay(other, booking.checkIn, booking.checkOut));
-            return { booking, first, last, lane, conflict };
+            const conflict = groups.some((other) => other !== records && overlapsStay(other[0], booking.checkIn, booking.checkOut));
+            return { booking, records, first, last, lane, conflict };
           });
 
           return (
@@ -71,17 +84,22 @@ export default function BookingCalendar({ start, end, focusDate, todayJump, room
                 </div>;
               })}
               <div className="booking-calendar-bars">
-                {bars.map(({ booking, first, last, lane, conflict }) => (
-                  <button key={booking.id} type="button" draggable
+                {bars.map(({ booking, records, first, last, lane, conflict }) => {
+                  const matching = records.length > 1;
+                  const label = booking.guestName + " · " + booking.checkIn + " – " + booking.checkOut +
+                    (matching ? " · " + records.length + " matching records" : "") + (conflict ? " · Overlaps another booking" : "");
+                  return <button key={booking.id} type="button" draggable={!matching}
                     onDragStart={(event) => {
+                      if (matching) return;
                       drag.current = booking;
                       event.dataTransfer.effectAllowed = "move";
                       event.dataTransfer.setData("text/plain", String(booking.id));
                     }}
                     onDragEnd={() => { drag.current = null; }}
-                    onClick={() => onOpen(booking)}
-                    title={booking.guestName + " · " + booking.checkIn + " – " + booking.checkOut}
-                    className={"booking-calendar-bar" + (conflict ? " booking-calendar-conflict" : "")}
+                    onClick={() => matching ? onReviewMatching(records) : onOpen(booking)}
+                    aria-label={label}
+                    title={label}
+                    className={"booking-calendar-bar" + (matching ? " booking-calendar-matching" : "") + (conflict ? " booking-calendar-conflict" : "")}
                     onDragOver={(event) => { if (drag.current && room.status !== "maintenance") event.preventDefault(); }}
                     onDrop={(event) => {
                       const target = event.currentTarget;
@@ -90,10 +108,12 @@ export default function BookingCalendar({ start, end, focusDate, todayJump, room
                       dropOn(event, room, day);
                     }}
                     style={{ gridColumn: (first + 1) + " / " + (last + 1), gridRow: lane + 1 }}>
-                    {conflict && <span aria-label="Booking conflict">! </span>}
-                    {booking.checkIn < startKey && "‹ "}{booking.guestName}{booking.checkOut > endKey && " ›"}
-                  </button>
-                ))}
+                    {matching && <span className="booking-calendar-count" aria-hidden="true">×{records.length}</span>}
+                    <span className="booking-calendar-guest" aria-hidden="true">
+                      {conflict && "! "}{booking.checkIn < startKey && "‹ "}{booking.guestName}{booking.checkOut > endKey && " ›"}
+                    </span>
+                  </button>;
+                })}
               </div>
             </div>
           );

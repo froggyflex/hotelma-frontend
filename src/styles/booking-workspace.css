@@ -35,9 +35,14 @@
 .booking-calendar-cell button { display: block; width: 100%; height: 100%; }
 .booking-calendar-cell button:hover { background: #dceaff; }
 .booking-calendar-bars { display: grid; position: absolute; left: var(--booking-room-width); right: 0; top: 5px; grid-template-columns: repeat(var(--booking-days), minmax(0, 1fr)); grid-auto-rows: 39px; pointer-events: none; }
-.booking-calendar-bar { pointer-events: auto; display: block; padding: 0 7px; margin: 0 2px 4px; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; border: 1px solid #9bbce8; background: #dceaff; color: #174782; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: grab; }
+.booking-calendar-bar { pointer-events: auto; display: flex; align-items: center; gap: 5px; padding: 0 7px; margin: 0 2px 4px; min-width: 0; overflow: hidden; text-align: left; border: 1px solid #9bbce8; background: #dceaff; color: #174782; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: grab; }
+.booking-calendar-guest { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .booking-calendar-bar:hover { background: #c8dfff; }
+.booking-calendar-matching { background: #fff2db; border-color: #e6bf81; color: #754500; cursor: pointer; }
+.booking-calendar-matching:hover { background: #fce7c1; }
+.booking-calendar-count { flex-shrink: 0; padding: 1px 4px; border-radius: 4px; background: #fff8ec; color: #754500; font-size: 11px; }
 .booking-calendar-conflict { background: #ffe6e9; border-color: #e7a0a9; color: #8e2430; }
+.booking-calendar-conflict:hover { background: #ffdade; }
 .booking-editor { display: flex; flex-direction: column; overflow: hidden; }
 @media (min-width: 851px) {
   .pms-main:has(.bookings-workspace) { padding-inline: clamp(12px, 1.25vw, 24px); }

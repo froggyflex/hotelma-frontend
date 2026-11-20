@@ -79,13 +79,14 @@ export default function Dashboard() {
     staysToday.some((other) => other.id !== booking.id && other.room === booking.room && overlapsStay(other, booking.checkIn, booking.checkOut)));
   const due = arrivals.reduce((sum, booking) => sum + balanceDue(booking), 0);
   const readiness = rooms.filter((room) => ["dirty", "in-progress"].includes(room.status));
-  const monthlyRevenue = active.filter((booking) => booking.checkIn?.slice(0, 7) === today.slice(0, 7))
+  const monthlyBookingValue = active.filter((booking) => booking.checkIn?.slice(0, 7) === today.slice(0, 7))
     .reduce((sum, booking) => sum + Number(booking.totalAmount || 0), 0);
-  const revenueByYear = new Map();
+  const bookingValueByYear = new Map();
   for (const booking of active) {
     const year = booking.checkIn?.slice(0, 4);
-    if (year) revenueByYear.set(year, (revenueByYear.get(year) || 0) + Number(booking.totalAmount || 0));
+    if (year) bookingValueByYear.set(year, (bookingValueByYear.get(year) || 0) + Number(booking.totalAmount || 0));
   }
+  const yearlyTotals = Array.from(bookingValueByYear).sort(([first], [second]) => second.localeCompare(first));
 
   async function markNoShow() {
     if (pending || !noShow) return;
@@ -134,6 +135,22 @@ export default function Dashboard() {
           <StayList id="today-departures" title="Departures today" icon={LogOut} bookings={departures} />
         </div>
         <StayList id="today-in-house" title="In-house stays" icon={BedDouble} bookings={inHouse} />
+        <section className="workspace-panel" aria-labelledby="yearly-booking-value">
+          <header className="workspace-panel-header">
+            <h2 id="yearly-booking-value">Booking value by year</h2>
+            <p className="workspace-muted">Active bookings by check-in year</p>
+          </header>
+          {yearlyTotals.length ? (
+            <dl className="dashboard-year-totals">
+              {yearlyTotals.map(([year, total]) => (
+                <div className="dashboard-year-total" key={year}>
+                  <dt>{year}</dt>
+                  <dd>{formatMoney(total)}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : <p className="workspace-empty">No active bookings to total.</p>}
+        </section>
         <div className="workspace-grid">
           <section className="workspace-panel workspace-panel-body space-y-2">
             <h2>Rooms tonight</h2>
@@ -145,13 +162,12 @@ export default function Dashboard() {
           </section>
           <section className="workspace-panel workspace-panel-body space-y-2">
             <h2>Booking value</h2>
-            <p className="text-2xl font-semibold">{formatMoney(monthlyRevenue)}</p>
+            <p className="text-2xl font-semibold">{formatMoney(monthlyBookingValue)}</p>
             <p className="workspace-muted">Stays arriving this month</p>
-            <details><summary className="cursor-pointer text-sm font-semibold">Payments and value by arrival year</summary>
+            <details><summary className="cursor-pointer text-sm font-semibold">Payment totals</summary>
               <div className="space-y-1 mt-2 text-sm">
                 <p>Deposits recorded · {formatMoney(bookings.reduce((sum, booking) => sum + Number(booking.deposit || 0), 0))}</p>
                 <p>Fully paid stays · {formatMoney(bookings.filter((booking) => booking.paid).reduce((sum, booking) => sum + Number(booking.totalAmount || 0), 0))}</p>
-                {Array.from(revenueByYear.entries()).sort().map(([year, total]) => <p key={year}>{year} · {formatMoney(total)}</p>)}
               </div>
             </details>
           </section>

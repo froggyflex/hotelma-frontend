@@ -92,6 +92,38 @@ function BookingList({ bookings, onOpen, searching }) {
   </div>;
 }
 
+function MatchingBookingRecords({ records, onOpen, onClose }) {
+  const [first] = records;
+  return (
+    <WorkspaceDialog title="Matching booking records" wide onClose={onClose}>
+      <div className="workspace-dialog-body space-y-3">
+        <div>
+          <p className="font-semibold">{first.guestName} · Room {first.room}</p>
+          <p className="workspace-muted">{humanDate(first.checkIn)} – {humanDate(first.checkOut)}</p>
+        </div>
+        <p className="workspace-muted">These records have the same guest, room and stay dates. Open each record to compare its details.</p>
+        <div className="workspace-panel">
+          {records.map((record) => {
+            const created = new Date(record.createdAt);
+            return (
+              <div className="workspace-row" key={record.id}>
+                <div className="space-y-1">
+                  <p className="font-semibold">Record {String(record.id).slice(-8)} · {record.channel || "Direct"}</p>
+                  <p className="workspace-muted">Total {formatMoney(record.totalAmount)} · Deposit {formatMoney(record.deposit)}{record.paid && " · Paid in full"}</p>
+                  {record.createdAt && !Number.isNaN(created.getTime()) && (
+                    <p className="workspace-muted">Created {created.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "medium", timeZone: "Europe/Athens" })}</p>
+                  )}
+                </div>
+                <button className="workspace-button" onClick={() => onOpen(record)}>Open record {String(record.id).slice(-8)}</button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </WorkspaceDialog>
+  );
+}
+
 export default function Bookings() {
   const [params, setParams] = useSearchParams();
   const bookingId = params.get("booking");
@@ -105,6 +137,7 @@ export default function Bookings() {
   const [history, setHistory] = useState(false);
   const [formSeed, setFormSeed] = useState(null);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [matchingRecords, setMatchingRecords] = useState(null);
   const [move, setMove] = useState(null);
   const [moving, setMoving] = useState(false);
   const [movementError, setMovementError] = useState("");
@@ -257,12 +290,17 @@ export default function Bookings() {
           </div>
           {listView ? <BookingList bookings={visible} onOpen={(booking) => setParams({ booking: booking.id })} searching={searching} /> :
             data.rooms.length ? <BookingCalendar start={start} end={end} focusDate={toDate(date)} todayJump={todayJump} rooms={data.rooms} bookings={visible} onOpen={(booking) => setParams({ booking: booking.id })}
+              onReviewMatching={setMatchingRecords}
               onCreate={(seed) => { if (!unavailable) newBooking(seed); }}
               onMove={(proposed) => { if (!unavailable) { setMovementError(""); setMove(proposed); } }} /> :
               <p className="workspace-empty">No rooms have been set up. <Link className="underline" to="/rooms">Add a room</Link></p>}
         </section>
       )}
       {data && !resource.loading && !resource.error && <DataFeedback {...resource} />}
+      {matchingRecords && <MatchingBookingRecords records={matchingRecords} onClose={() => setMatchingRecords(null)} onOpen={(record) => {
+        setMatchingRecords(null);
+        setParams({ booking: record.id });
+      }} />}
       {availabilityOpen && data && <BookingAvailability rooms={data.rooms} bookings={active} onClose={() => setAvailabilityOpen(false)} onSelect={newBooking} />}
       {data && (editing || wantsNew) && <BookingEditor key={editing?.id || "new"} booking={editing} seed={formSeed} rooms={data.rooms} bookings={active}
         onClose={closeEditor} onSave={saveBooking} onDelete={deleteBooking} readOnly={unavailable} />}
