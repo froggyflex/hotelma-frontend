@@ -11,7 +11,7 @@ import { requestNotificationPermission } from "../utils/notifications";
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || "/bookings";
+  const from = location.state?.from || { pathname: "/bookings" };
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -84,8 +84,7 @@ import { requestNotificationPermission } from "../utils/notifications";
 
       {/* RIGHT LOGIN PANEL */}
       <div
-        className="flex items-center justify-center px-6"
-        style={{ flexBasis: "45%" }}
+        className="flex flex-1 items-center justify-center px-6"
       >
         <div
           className="w-full max-w-sm rounded-xl p-8
@@ -119,11 +118,13 @@ import { requestNotificationPermission } from "../utils/notifications";
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 mb-1">
                 Username
               </label>
               <input
+                id="login-username"
                 type="text"
+                autoComplete="username"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -133,11 +134,13 @@ import { requestNotificationPermission } from "../utils/notifications";
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <input
+                id="login-password"
                 type="password"
+                autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

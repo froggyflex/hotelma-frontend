@@ -1,51 +1,44 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import axios from "axios";
+import { DataFeedback, useWorkspaceData } from "../components/Workspace";
 
 const API = import.meta.env.VITE_API_URL;
 
+async function loadSettings(signal) {
+  const { data } = await axios.get(API + "/api/settings", { signal });
+  if (!data?.hotelInfo || !data?.invoiceDefaults || !data?.invoiceSeries || !data?.aade) throw new Error("Invalid settings");
+  return data;
+}
+
 export default function SettingsPage() {
-  const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const resource = useWorkspaceData(loadSettings);
+  const { data: settings, setData: setSettings, loading, error } = resource;
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState(null);
 
-  useEffect(() => {
-    axios.get(`${API}/api/settings`)
-      .then(res => {
-        setSettings(res.data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Settings load error:", err);
-        setLoading(false);
-      });
-  }, []);
-
-  const save = () => {
+  async function save() {
+    if (saving || loading || error) return;
     setSaving(true);
-    axios.post(`${API}/api/settings`, settings)
-      .then(() => {
-        alert("Settings saved!");
-        setSaving(false);
-      })
-      .catch(err => {
-        alert("Error saving settings");
-        console.error(err);
-        setSaving(false);
-      });
-  };
-
-  if (loading || !settings) {
-     return (<div className="p-6">Loading settings…</div> );
+    setNotice(null);
+    try {
+      await axios.post(API + "/api/settings", settings);
+      setNotice({ message: "Settings saved." });
+    } catch {
+      setNotice({ message: "Could not save settings. Try again.", error: true });
+    } finally {
+      setSaving(false);
+    }
   }
 
-
   return (
-    <div className="p-6">
+    <div className="workspace">
 
-      <h1 className="text-2xl font-bold text-blue-600 mb-4">Hotel Settings</h1>
+      <header className="workspace-heading"><h1>Hotel settings</h1></header>
+      {(!settings || loading || error) && <DataFeedback {...resource} />}
+      {notice && <p className={notice.error ? "workspace-alert" : "workspace-badge workspace-badge-ready justify-self-start"} role={notice.error ? "alert" : "status"}>{notice.message}</p>}
 
 
-      <div className="grid grid-cols-2 gap-6 bg-white p-4 rounded shadow">
+      {settings && <fieldset disabled={saving || loading || Boolean(error)} className="workspace-panel workspace-panel-body grid grid-cols-1 sm:grid-cols-2 gap-6 min-w-0">
 
         {/* HOTEL INFO */}
         <div>
@@ -55,7 +48,7 @@ export default function SettingsPage() {
             <div key={field} className="mb-3">
               <label className="block text-sm font-bold capitalize">{field}</label>
               <input
-                className="border p-2 rounded w-full"
+                className="workspace-input"
                 value={settings.hotelInfo[field]}
                 onChange={(e) => setSettings({
                   ...settings,
@@ -69,11 +62,11 @@ export default function SettingsPage() {
         {/* INVOICE DEFAULTS */}
         <div>
           <h2 className="text-lg font-semibold mb-2">Invoice Defaults</h2>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
           <div className="mb-3">
             <label className="block text-sm font-bold">Series</label>
             <input
-              className="border p-2 rounded w-full"
+              className="workspace-input"
               value={settings.invoiceSeries.currentSeries}
               onChange={(e) => setSettings({
                 ...settings,
@@ -88,7 +81,7 @@ export default function SettingsPage() {
             <input
               type="number"
               step="0.01"
-              className="border p-2 rounded w-full"
+              className="workspace-input"
               value={settings.invoiceDefaults.vatAccommodation}
               onChange={(e) => setSettings({
                 ...settings,
@@ -105,7 +98,7 @@ export default function SettingsPage() {
             <input
               type="number"
               step="0.01"
-              className="border p-2 rounded w-full"
+              className="workspace-input"
               value={settings.invoiceDefaults.vatExtras}
               onChange={(e) => setSettings({
                 ...settings,
@@ -122,7 +115,7 @@ export default function SettingsPage() {
             <input
               type="number"
               step="0.1"
-              className="border p-2 rounded w-full"
+              className="workspace-input"
               value={settings.invoiceDefaults.accommodationTax}
               onChange={(e) => setSettings({
                 ...settings,
@@ -139,7 +132,7 @@ export default function SettingsPage() {
                 <div>
                 <label className="block text-sm font-bold">Current Series</label>
                 <input
-                    className="border p-2 rounded w-full"
+                    className="workspace-input"
                     value={settings.invoiceSeries.currentSeries}
                     onChange={(e) => setSettings({
                     ...settings,
@@ -155,7 +148,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-bold">Next AA</label>
                 <input
                     type="number"
-                    className="border p-2 rounded w-full"
+                    className="workspace-input"
                     value={settings.invoiceSeries.nextAA}
                     onChange={(e) => setSettings({
                     ...settings,
@@ -171,7 +164,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-bold">Max AA</label>
                 <input
                     type="number"
-                    className="border p-2 rounded w-full"
+                    className="workspace-input"
                     value={settings.invoiceSeries.maxAA}
                     onChange={(e) => setSettings({
                     ...settings,
@@ -187,7 +180,7 @@ export default function SettingsPage() {
             <div className="mt-4">
                 <label className="block text-sm font-bold">Allowed Series (comma separated)</label>
                 <input
-                className="border p-2 rounded w-full"
+                className="workspace-input"
                 value={settings.invoiceSeries.allowedSeries.join(",")}
                 onChange={(e) => setSettings({
                     ...settings,
@@ -203,13 +196,13 @@ export default function SettingsPage() {
         </div>
 
         {/* AADE KEYS */}
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <h2 className="text-lg font-semibold mb-2">AADE API Settings</h2>
 
           <div className="mb-3">
             <label className="block font-bold text-sm">Mode</label>
             <select
-              className="border p-2 rounded w-full"
+              className="workspace-input"
               value={settings.aade.mode}
               onChange={(e) => setSettings({
                 ...settings,
@@ -225,7 +218,7 @@ export default function SettingsPage() {
             <div>
               <label className="block font-bold">Username</label>
               <input
-                className="border p-2 rounded w-full"
+                className="workspace-input"
                 value={settings.aade.username}
                 onChange={(e) => setSettings({
                   ...settings,
@@ -238,7 +231,7 @@ export default function SettingsPage() {
               <label className="block font-bold">Subscription Key</label>
               <input
                 type="password"
-                className="border p-2 rounded w-full"
+                className="workspace-input"
                 value={settings.aade.subscriptionKey}
                 onChange={(e) => setSettings({
                   ...settings,
@@ -249,16 +242,16 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="col-span-2 text-right">
+        <div className="sm:col-span-2 text-right">
           <button
             onClick={save}
-            className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700"
+            className="workspace-button workspace-primary"
           >
             {saving ? "Saving…" : "Save Settings"}
           </button>
         </div>
 
-      </div>
+      </fieldset>}
     </div>
   );
 }

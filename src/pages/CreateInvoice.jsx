@@ -1,417 +1,131 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
+import { ChevronDown, Search } from "lucide-react";
 import InvoicePreview from "../components/InvoicePreview";
-import buildInvoicePayload from "../utils/invoicePayloadBuilder";
 import InvoiceFullDetails from "../components/InvoiceFullDetails";
+import { DataFeedback, useWorkspaceData } from "../components/Workspace";
+import buildInvoicePayload from "../utils/invoicePayloadBuilder";
+import { API, formatMoney, isActiveBooking } from "../utils/operations";
 
-const API = import.meta.env.VITE_API_URL;
-const BOOKINGS_URL = `${API}/bookings`;
-const SETTINGS_URL = `${API}/api/settings`;
+const defaults = {
+  customerType: "B2C", customerName: null, customerVatNumber: "", customerIdDoc: "",
+  customerAddress: "", customerCountry: "GR", customerPostalCode: "", notes: "",
+};
+
+async function loadInvoiceInputs(signal) {
+  const [bookings, settings] = await Promise.all([
+    axios.get(API + "/bookings", { signal }),
+    axios.get(API + "/api/settings", { signal }),
+  ]);
+  if (!Array.isArray(bookings.data) || !settings.data?.invoiceDefaults || !settings.data?.hotelInfo) throw new Error("Invalid invoice data");
+  return { bookings: bookings.data.filter(isActiveBooking), settings: settings.data };
+}
 
 export default function CreateInvoice() {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const resource = useWorkspaceData(loadInvoiceInputs);
+  const { data, loading, error } = resource;
+  const [bookingId, setBookingId] = useState(params.get("booking") || "");
+  const [search, setSearch] = useState("");
+  const [picker, setPicker] = useState(false);
+  const [customer, setCustomer] = useState(defaults);
+  const [payments, setPayments] = useState({});
+  const [rate, setRate] = useState("");
+  const [preview, setPreview] = useState(false);
 
-  const [bookingSearch, setBookingSearch] = useState("");
-  const [bookingDropdownOpen, setBookingDropdownOpen] = useState(false);
+  const bookings = data?.bookings || [];
+  const booking = bookings.find((entry) => String(entry.id) === bookingId);
+  const sourceRate = rate !== "" ? Number(rate) : Number(booking?.price || 0);
+  const customerName = customer.customerName ?? booking?.guestName ?? "";
+  const payload = booking ? buildInvoicePayload(booking, payments, data.settings, { ...customer, customerName, customRate: sourceRate }) : null;
+  const validTotal = payload && Number.isFinite(payload.totalAmount) && payload.totalAmount >= 0 && sourceRate >= 0;
+  const assigned = Object.values(payments).reduce((sum, value) => sum + Number(value || 0), 0);
+  const wrongPayment = Object.values(payments).some((value) => Number(value) < 0);
+  const paymentMismatch = validTotal && (wrongPayment || ((assigned > 0 || customer.customerType === "B2B") && Math.round(assigned * 100) !== Math.round(payload.totalAmount * 100)));
+  const missingVat = customer.customerType === "B2B" && !customer.customerVatNumber.trim();
+  const matching = bookings.filter((entry) => [entry.guestName, entry.room, entry.checkIn, entry.checkOut].some((value) => String(value ?? "").toLowerCase().includes(search.trim().toLowerCase())));
 
+  function choose(entry) {
+    setBookingId(String(entry.id));
+    setPicker(false);
+    setSearch("");
+    setCustomer(defaults);
+    setPayments({});
+    setRate("");
+  }
 
-  const [bookings, setBookings] = useState([]);
-  const [settings, setSettings] = useState(null);
+  function customerField(key, label, fallback = "") {
+    return <label className="workspace-field">{label}
+      <input className="workspace-input" value={customer[key] ?? fallback} onChange={(event) => setCustomer((current) => ({ ...current, [key]: event.target.value }))} />
+    </label>;
+  }
 
-  const [selectedBookingId, setSelectedBookingId] = useState("");
-  const [selectedBooking, setSelectedBooking] = useState(null);
-
-  // Customer
-  const [customerType, setCustomerType] = useState("B2C");
-  const [customerName, setCustomerName] = useState("");
-  const [customerVatNumber, setCustomerVatNumber] = useState("");
-  const [customerIdDoc, setCustomerIdDoc] = useState("");
-  const [customerAddress, setCustomerAddress] = useState("");
-  const [customerCountry, setCustomerCountry] = useState("GR");
-  const [customerPostalCode, setCustomerPostalCode] = useState("");
-  const [invoiceNotes, setInvoiceNotes] = useState("");
-
-  // Payments
-  const [paymentCash, setPaymentCash] = useState(0);
-  const [paymentCard, setPaymentCard] = useState(0);
-  const [paymentBank, setPaymentBank] = useState(0);
-  const [paymentIris, setPaymentIris] = useState(0);
-
-  // Rate override
-  const [customRate, setCustomRate] = useState(null);
-
-  // Payload + modal
-  const [payload, setPayload] = useState(null);
-  const [showPreview, setShowPreview] = useState(false);
-
-
-  const filteredBookings = bookings.filter(b => {
-  const s = bookingSearch.toLowerCase();
-    return (
-      b.guestName.toLowerCase().includes(s) ||
-      b.room.toLowerCase().includes(s) ||
-      b.checkIn.includes(s) ||
-      b.checkOut.includes(s)
-    );
-  });
-
-  // Load settings + bookings
-  useEffect(() => {
-    axios.get(BOOKINGS_URL).then((res) => setBookings(res.data));
-    axios.get(SETTINGS_URL).then((res) => setSettings(res.data));
-  }, []);
-
-  // When booking is selected, prefill
-  useEffect(() => {
-    const b = bookings.find((x) => x.id === selectedBookingId) || null;
-    setSelectedBooking(b);
-
-    if (b) {
-      setCustomerName(b.guestName || b.name || "");
-      setPaymentCash(0);
-      setPaymentCard(0);
-      setPaymentBank(0);
-      setPaymentIris(0);
-      setInvoiceNotes("");
-      setCustomRate(b.price || null);
-    }
-
-    setPayload(null);
-    setShowPreview(false);
-  }, [selectedBookingId, bookings]);
-
-  //LIVE PAYLOAD GENERATION — reacts to all changes
-  useEffect(() => {
-    if (!selectedBooking || !settings) return;
-
-    const p = buildInvoicePayload(
-      selectedBooking,
-      {
-        cash: paymentCash,
-        card: paymentCard,
-        bank: paymentBank,
-        iris: paymentIris,
-      },
-      settings,
-      {
-        customerType,
-        customerName,
-        customerVatNumber,
-        customerIdDoc,
-        customerAddress,
-        customerCountry,
-        customerPostalCode,
-        notes: invoiceNotes,
-        customRate: customRate ?? null,
-      }
-    );
-
-    setPayload(p);
-  }, 
-  [
-    selectedBooking,
-    settings,
-
-    customerType,
-    customerName,
-    customerVatNumber,
-    customerIdDoc,
-    customerAddress,
-    customerCountry,
-    customerPostalCode,
-    invoiceNotes,
-
-    paymentCash,
-    paymentCard,
-    paymentBank,
-    paymentIris,
-
-    customRate,
-  ]);
-
-  const openPreview = () => {
-    if (!payload) {
-      alert("Payload is not ready yet.");
-      return;
-    }
-    setShowPreview(true);
-  };
-
-  return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl mb-2 font-bold text-blue-600">
-        Create Invoice
-      </h1>
-
-      {/* Booking selection */}
-      <div className="bg-white p-4 rounded-lg shadow space-y-3">
-        <h2 className="text-lg font-semibold">1. Select Booking</h2>
-
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setBookingDropdownOpen((o) => !o)}
-            className="w-full border p-2 rounded bg-white flex justify-between"
-          >
-            {selectedBooking
-              ? `${selectedBooking.guestName} — Room ${selectedBooking.room}`
-              : "Select Booking..."}
-            <span>▾</span>
-          </button>
-
-          {bookingDropdownOpen && (
-            <div className="absolute z-50 mt-1 w-full bg-white border rounded shadow-lg max-h-80 overflow-y-auto">
-              
-              {/* SEARCH FIELD */}
-              <div className="p-2 sticky top-0 bg-white border-b">
-                <input
-                  type="text"
-                  placeholder="Search bookings..."
-                  className="w-full p-2 border rounded"
-                  value={bookingSearch}
-                  onChange={(e) => setBookingSearch(e.target.value)}
-                />
-              </div>
-
-              {/* RESULT LIST */}
-              {filteredBookings.length === 0 && (
-                <div className="p-3 text-slate-500 text-center">
-                  No bookings found
-                </div>
-              )}
-
-              {filteredBookings.map((b) => (
-                <button
-                  key={b.id}
-                  className="w-full px-3 py-2 text-left hover:bg-blue-50"
-                  onClick={() => {
-                    setSelectedBooking(b);
-                    setBookingDropdownOpen(false);
-                    setBookingSearch("");
-                    setSelectedBooking(b);
-                    setPayload((prev) => ({
-                      ...prev,
-                      bookingInfo: b
-                    })); // your logic
-                  }}
-                >
-                  <div className="font-semibold">{b.guestName}</div>
-                  <div className="text-xs text-slate-500">
-                    Room {b.room} • {b.checkIn} → {b.checkOut}
-                  </div>
-                </button>
-              ))}
+  return <div className="workspace">
+    <header className="workspace-heading"><h1>New invoice</h1><Link className="workspace-button" to="/invoices">Invoice register</Link></header>
+    {(!data || loading || error) && <DataFeedback {...resource} />}
+    {data && <>
+      <section className="workspace-panel">
+        <div className="workspace-panel-header"><h2>Booking</h2></div>
+        <div className="workspace-panel-body space-y-3">
+          {bookingId && !booking && <p className="workspace-alert" role="alert">This booking is unavailable for invoicing. Choose another booking.</p>}
+          <button className="workspace-button" aria-expanded={picker} onClick={() => setPicker((open) => !open)}>{booking ? booking.guestName + " · Room " + booking.room : "Select booking"} <ChevronDown size={16} /></button>
+          {picker && <div className="workspace-panel">
+            <div className="workspace-toolbar"><label className="booking-search"><Search size={17} aria-hidden="true" /><input autoFocus className="workspace-input" aria-label="Search bookings" placeholder="Search guest, room or date" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
+            <div className="max-h-60 overflow-auto">
+              {matching.length === 0 && <p className="workspace-empty">No bookings match this search.</p>}
+              {matching.map((entry) => <button key={entry.id} type="button" className="workspace-row booking-list-row" onClick={() => choose(entry)}><strong>{entry.guestName}</strong><span className="workspace-muted">Room {entry.room} · {entry.checkIn} – {entry.checkOut}</span></button>)}
             </div>
-          )}
+          </div>}
+          {booking && <label className="workspace-field max-w-xs">Price per night (€)
+            <input className="workspace-input" type="number" min="0" step="0.01" value={rate || booking.price || 0} onChange={(event) => setRate(event.target.value)} />
+          </label>}
         </div>
+      </section>
 
-
-        {selectedBooking && (
-          <>
-            <p className="text-xs text-slate-500 mt-1">
-              Nights:{" "}
-              {Math.max(
-                1,
-                Math.ceil(
-                  (new Date(selectedBooking.checkOut) -
-                    new Date(selectedBooking.checkIn)) /
-                    (1000 * 60 * 60 * 24)
-                )
-              )}
-            </p>
-
-            <label className="flex flex-col mt-3 text-sm">
-              <span className="text-xs text-slate-500 mb-0.5">
-                Price per night (€)
-              </span>
-              <input
-                type="number"
-                className="border rounded px-2 py-1"
-                value={customRate ?? ""}
-                onChange={(e) =>
-                  setCustomRate(Number(e.target.value || 0))
-                }
-              />
+      {booking && <>
+        <section className="workspace-panel">
+          <div className="workspace-panel-header"><h2>Customer and invoice type</h2></div>
+          <div className="workspace-panel-body space-y-4">
+            <label className="workspace-field max-w-xs">Invoice type
+              <select className="workspace-input" value={customer.customerType} onChange={(event) => setCustomer({ ...customer, customerType: event.target.value })}>
+                <option value="B2C">Touristic (B2C)</option><option value="B2B">Business (B2B)</option>
+              </select>
             </label>
-          </>
-        )}
-      </div>
-
-      {/* Customer info */}
-      <div className="bg-white p-4 rounded-lg shadow space-y-4">
-        <h2 className="text-lg font-semibold">2. Customer & Invoice Type</h2>
-
-        <div className="flex gap-4 mb-3">
-          <button
-            type="button"
-            onClick={() => setCustomerType("B2C")}
-            className={
-              "px-3 py-1 rounded border text-sm " +
-              (customerType === "B2C"
-                ? "border-blue-600 bg-blue-50 text-blue-700"
-                : "border-slate-300")
-            }
-          >
-            Touristic (B2C)
-          </button>
-          <button
-            type="button"
-            onClick={() => setCustomerType("B2B")}
-            className={
-              "px-3 py-1 rounded border text-sm " +
-              (customerType === "B2B"
-                ? "border-blue-600 bg-blue-50 text-blue-700"
-                : "border-slate-300")
-            }
-          >
-            Business (B2B)
-          </button>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-3 text-sm">
-          {/* Name */}
-          <label className="flex flex-col">
-            <span className="text-xs text-slate-500 mb-0.5">Customer name</span>
-            <input
-              className="border rounded px-2 py-1"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-            />
-          </label>
-
-          {/* B2B VAT */}
-          {customerType === "B2B" && (
-            <label className="flex flex-col">
-              <span className="text-xs text-slate-500 mb-0.5">Customer AFM</span>
-              <input
-                className="border rounded px-2 py-1"
-                value={customerVatNumber}
-                onChange={(e) => setCustomerVatNumber(e.target.value)}
-              />
+            <div className="workspace-form-grid">
+              {customerField("customerName", "Customer name", booking.guestName)}
+              {customer.customerType === "B2B" ? customerField("customerVatNumber", "VAT number (AFM)") : customerField("customerIdDoc", "ID / Passport")}
+              {customerField("customerAddress", "Address")}
+              {customerField("customerPostalCode", "Postal code")}
+              {customerField("customerCountry", "Country ISO code")}
+            </div>
+            <label className="workspace-field">Internal notes
+              <textarea className="workspace-input min-h-[70px]" value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} />
             </label>
-          )}
-
-          {/* B2C ID */}
-          {customerType === "B2C" && (
-            <label className="flex flex-col">
-              <span className="text-xs text-slate-500 mb-0.5">ID / Passport</span>
-              <input
-                className="border rounded px-2 py-1"
-                value={customerIdDoc}
-                onChange={(e) => setCustomerIdDoc(e.target.value)}
-              />
-            </label>
-          )}
-
-          {/* Address */}
-          <label className="flex flex-col md:col-span-2">
-            <span className="text-xs text-slate-500 mb-0.5">Address</span>
-            <input
-              className="border rounded px-2 py-1"
-              value={customerAddress}
-              onChange={(e) => setCustomerAddress(e.target.value)}
-            />
-          </label>
-
-          <label className="flex flex-col">
-            <span className="text-xs text-slate-500 mb-0.5">Postal Code</span>
-            <input
-              className="border rounded px-2 py-1"
-              value={customerPostalCode}
-              onChange={(e) => setCustomerPostalCode(e.target.value)}
-            />
-          </label>
-
-          <label className="flex flex-col">
-            <span className="text-xs text-slate-500 mb-0.5">Country ISO</span>
-            <input
-              className="border rounded px-2 py-1"
-              value={customerCountry}
-              onChange={(e) => setCustomerCountry(e.target.value)}
-            />
-          </label>
-
-          <label className="flex flex-col md:col-span-2">
-            <span className="text-xs text-slate-500 mb-0.5">
-              Notes (not sent to AADE)
-            </span>
-            <textarea
-              className="border rounded px-2 py-1 min-h-[60px]"
-              value={invoiceNotes}
-              onChange={(e) => setInvoiceNotes(e.target.value)}
-            />
-          </label>
+          </div>
+        </section>
+        <section className="workspace-panel">
+          <div className="workspace-panel-header"><h2>Payments</h2>{validTotal && <span className="workspace-badge">Total {formatMoney(payload.totalAmount)}</span>}</div>
+          <div className="workspace-panel-body space-y-3">
+            <div className="workspace-form-grid">
+              {[["cash", "Cash"], ["card", "Card"], ["bank", "Bank transfer"], ["iris", "IRIS"]].map(([key, label]) =>
+                <label className="workspace-field" key={key}>{label} (€)
+                  <input className="workspace-input" type="number" min="0" step="0.01" placeholder="0.00" value={payments[key] ?? ""} onChange={(event) => setPayments({ ...payments, [key]: event.target.value })} />
+                </label>)}
+            </div>
+            <p className="workspace-muted">Payments entered · {formatMoney(assigned)}</p>
+            {paymentMismatch && <p className="workspace-field-error" role="status">{wrongPayment ? "Enter non-negative payment amounts." : "Payment amounts must add up to the invoice total."}</p>}
+          </div>
+        </section>
+        {validTotal && <InvoiceFullDetails payload={payload} booking={booking} />}
+        <div className="workspace-actions justify-end">
+          {missingVat && <span className="workspace-field-error">Enter the VAT number for a business invoice.</span>}
+          <button className="workspace-button workspace-primary" disabled={!validTotal || !customerName.trim() || paymentMismatch || missingVat || loading || Boolean(error)} onClick={() => setPreview(true)}>Review invoice</button>
         </div>
-      </div>
-
-      {/* Payments */}
-      <div className="bg-white p-4 rounded-lg shadow space-y-3">
-        <h2 className="text-lg font-semibold">3. Payments Breakdown</h2>
-        <div className="grid md:grid-cols-4 gap-4 text-sm">
-          <label className="flex flex-col">
-            <span className="text-xs">Cash (€)</span>
-            <input
-              type="number"
-              className="border rounded px-2 py-1"
-              value={paymentCash}
-              onChange={(e) => setPaymentCash(Number(e.target.value || 0))}
-            />
-          </label>
-
-          <label className="flex flex-col">
-            <span className="text-xs">Card (€)</span>
-            <input
-              type="number"
-              className="border rounded px-2 py-1"
-              value={paymentCard}
-              onChange={(e) => setPaymentCard(Number(e.target.value || 0))}
-            />
-          </label>
-
-          <label className="flex flex-col">
-            <span className="text-xs">Bank transfer (€)</span>
-            <input
-              type="number"
-              className="border rounded px-2 py-1"
-              value={paymentBank}
-              onChange={(e) => setPaymentBank(Number(e.target.value || 0))}
-            />
-          </label>
-
-          <label className="flex flex-col">
-            <span className="text-xs">IRIS (€)</span>
-            <input
-              type="number"
-              className="border rounded px-2 py-1"
-              value={paymentIris}
-              onChange={(e) => setPaymentIris(Number(e.target.value || 0))}
-            />
-          </label>
-        </div>
-  </div>
-      {/* LIVE FULL INVOICE DETAILS */}
-      {payload && selectedBooking && (
-        <InvoiceFullDetails payload={payload} booking={selectedBooking} />
-      )}
-
-      {/* FINAL CONFIRM BUTTON */}
-      <div>
-        {selectedBooking && (
-          <button
-            onClick={openPreview}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 shadow"
-          >
-            ▶ Confirm & Submit
-          </button>
-        )}
-      </div>
-
-      {showPreview && payload && selectedBooking && (
-        <InvoicePreview
-          payload={payload}
-          booking={selectedBooking}
-          close={() => setShowPreview(false)}
-        />
-      )}
-    </div>
-  );
+      </>}
+    </>}
+    {preview && payload && booking && <InvoicePreview payload={payload} booking={booking} close={() => setPreview(false)} onSubmitted={() => navigate("/invoices")} />}
+  </div>;
 }
+

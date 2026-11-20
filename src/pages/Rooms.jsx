@@ -1,305 +1,128 @@
-import React, { useEffect, useState } from 'react'
-import axios from 'axios'
+import { useState } from "react";
+import axios from "axios";
+import { Plus } from "lucide-react";
+import { DataFeedback, useWorkspaceData, WorkspaceDialog } from "../components/Workspace";
+import { API, errorMessage } from "../utils/operations";
 
-const API = import.meta.env.VITE_API_URL;
-const URL  = `${API}/bookings`;
-const URLR = `${API}/rooms`;
+const URL = API + "/rooms";
+const defaultRoom = { name: "", type: "Double", capacity: 2, status: "clean" };
+const roomTypes = ["Single", "Double", "Family", "Suite", "Studio", "Studios", "Apartment"];
+const statusLabels = { clean: "Ready", dirty: "Needs cleaning", "in-progress": "In progress", occupied: "Occupied", maintenance: "Maintenance", free: "Status unset" };
 
-const emptyRoom = { name: '', type: 'Double', capacity: 2, status: 'clean' }
-
-function RoomEditor({ room, onSave }) {
-  const [form, setForm] = useState(room);
-
-  function handleChange(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    onSave(form);
-  }
-
-  function handleCancel() {
-    if (onCancel) onCancel(); // safe even if onCancel is undefined
-  }
-
-  return (
-    <div className="w-full max-w-md bg-white rounded-xl shadow-xl p-6 space-y-6">
-      <h2 className="text-xl font-semibold text-gray-800 border-b pb-2">
-        Edit Room: {room.name}
-      </h2>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Room Number */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Room Number
-          </label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => handleChange("name", e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-gray-800 
-                       focus:outline-none focus:ring-2 focus:ring-sky-400"
-          />
-        </div>
-
-        {/* Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Type
-          </label>
-          <select
-            value={form.type}
-            onChange={(e) => handleChange("type", e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-gray-800 
-                       focus:outline-none focus:ring-2 focus:ring-sky-400"
-          >
-            <option>Double</option>
-            <option>Single</option>
-            <option>Family</option>
-            <option>Studio</option>
-            <option>Apartment</option>
-          </select>
-        </div>
-
-        {/* Status */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Status
-          </label>
-          <select
-            value={form.status}
-            onChange={(e) => handleChange("status", e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-gray-800 
-                       focus:outline-none focus:ring-2 focus:ring-sky-400"
-          >
-            <option value="clean">Clean</option>
-            <option value="dirty">Dirty</option>
-            <option value="occupied">Occupied</option>
-            <option value="maintenance">Maintenance</option>
-          </select>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex justify-end space-x-3 pt-2">
-          {/* <button
-            type="button"
-            onClick={handleCancel}
-            className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 
-                       hover:bg-gray-300 transition"
-          >
-            Cancel
-          </button> */}
-
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-lg bg-sky-500 text-white 
-                       hover:bg-sky-600 transition shadow-sm"
-          >
-            Save Changes
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+async function loadRooms(signal) {
+  const { data } = await axios.get(URL, { signal });
+  if (!Array.isArray(data)) throw new Error("Invalid response");
+  return data;
 }
 
 export default function Rooms() {
-  const [rooms, setRooms] = useState([])
-  const [form, setForm] = useState(emptyRoom)
-  const [editingRoom, setEditingRoom] = useState(null); 
+  const resource = useWorkspaceData(loadRooms);
+  const { data, setData, loading, error } = resource;
+  const [editing, setEditing] = useState(null);
+  const [notice, setNotice] = useState("");
 
-  const load = () => axios.get(URLR).then((res) => setRooms(res.data))
-  useEffect(() => {
-    load()
-  }, [])
+  return <div className="workspace">
+    <header className="workspace-heading"><h1>Rooms</h1><button className="workspace-button workspace-primary" onClick={() => setEditing(defaultRoom)} disabled={!data || loading || Boolean(error)}><Plus size={17} /> Add room</button></header>
+    {notice && <p className="workspace-badge workspace-badge-ready justify-self-start" role="status">{notice}</p>}
+    {(!data || loading || error) && <DataFeedback {...resource} />}
+    {data && <section className="workspace-panel">
+      <div className="workspace-panel-header"><h2>Room inventory</h2><span className="workspace-badge">{data.length} rooms</span></div>
+      {data.length === 0 ? <p className="workspace-empty">No rooms have been set up.</p> :
+        [...data].sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""), undefined, { numeric: true })).map((room) =>
+          <div className="workspace-row" key={room.id}>
+            <div><strong>Room {room.name}</strong><p className="workspace-muted">{room.type} · Sleeps {room.capacity}</p></div>
+            <div className="workspace-actions">
+              <span className={"workspace-badge" + (room.status === "clean" ? " workspace-badge-ready" : room.status === "dirty" ? " workspace-badge-warn" : "")}>{statusLabels[room.status] || "Status unset"}</span>
+              <button className="workspace-button" disabled={loading || Boolean(error)} aria-label={"Edit room " + room.name} onClick={() => setEditing(room)}>Edit</button>
+            </div>
+          </div>)}
+    </section>}
+    {data && !loading && !error && <DataFeedback {...resource} />}
+    {editing && <RoomEditor room={editing} onClose={() => setEditing(null)} onSaved={(saved) => {
+      setData((current) => editing.id ? current.map((room) => room.id === editing.id ? saved : room) : [...current, saved]);
+      setNotice("Room " + saved.name + " saved.");
+      setEditing(null);
+    }} onDeleted={() => {
+      setData((current) => current.filter((room) => room.id !== editing.id));
+      setNotice("Room " + editing.name + " deleted.");
+      setEditing(null);
+    }} />}
+  </div>;
+}
 
-   
-  const handleCreate = () => {
-    if(form.name == ""){
-      alert("Please assign a room number")
+function RoomEditor({ room, onClose, onSaved, onDeleted }) {
+  const [form, setForm] = useState(room);
+  const [pending, setPending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save(event) {
+    event.preventDefault();
+    if (pending || confirmDelete) return;
+    const { name, type, status } = form;
+    const fields = { name: name?.trim(), type, status, capacity: Number(form.capacity) };
+    if (!fields.name || !Number.isInteger(fields.capacity) || fields.capacity < 1) {
+      setError("Enter a room number and a capacity of at least one.");
       return;
     }
-    axios.post(URLR, form).then(() => {
-      setForm(emptyRoom)
-      load()
-    })
-  }
-    
-  function startEditRoom(room) {
-    setEditingRoom(room);
-  }
-
-
-  return (
-    
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Rooms</h2>
-
-      <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-        <h3 className="font-semibold mb-2">Add room</h3>
-        <div className="grid gap-2 md:grid-cols-4 text-sm">
-          <input
-            className="border rounded px-2 py-1"
-            placeholder="Room number/name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <select
-            className="border rounded px-2 py-1"
-            value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value })}
-          >
-            <option>Single</option>
-            <option>Double</option>
-            <option>Family</option>
-            <option>Suite</option>
-            <option>Studios</option>
-          </select>
-          <label className="flex flex-col">
-            <span className="text-xs text-slate-500 mb-0.5">Capacity</span>
-            <input
-              type="number"
-              min="1"
-              className="border rounded px-2 py-1"
-              value={form.capacity}
-              onChange={(e) =>
-                setForm({ ...form, capacity: Number(e.target.value || 1) })
-              }
-            />
-          </label>
-          {/* <select
-            className="border rounded px-2 py-1"
-            value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value })}
-          >
-            <option value="clean">Clean</option>
-            <option value="dirty">Dirty</option>
-            <option value="in-progress">In progress</option>
-          </select> */}
-        </div>
-        <div className="flex justify-end mt-3">
-          <button
-            type="button"
-            className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm"
-            onClick={handleCreate}
-          >
-            Save room
-          </button>
-        </div>
-      </div>
-       {editingRoom && (
-      <Modal onClose={() => setEditingRoom(null)} >
-        <RoomEditor 
-          room={editingRoom}
-          onSave={updateRoom}
-          onCancel={() => setEditingRoom(null)}
-        />
-      </Modal>
-    )}
-      <div className="bg-white rounded-xl shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="text-left px-3 py-2">Room</th>
-              <th className="text-left px-3 py-2">Type</th>
-              <th className="text-left px-3 py-2">Capacity</th>
-              <th className="text-left px-3 py-2">Status</th>
-              <th className="text-left px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rooms.map((r) => (
-              <tr key={r.id} className="border-t">
-                <td className="px-3 py-2">{r.name}</td>
-                <td className="px-3 py-2 text-slate-600">{r.type}</td>
-                <td className="px-3 py-2 text-slate-600">{r.capacity}</td>
-                <td className="px-3 py-2">
-                  <StatusBadge status={r.status} />
-                </td>
-                  <td className="px-3 py-2">
-                    <button className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm" onClick={() => startEditRoom(r)}>Edit</button> &nbsp;&nbsp;&nbsp;
-                    <button className="bg-red-600 text-white px-4 py-1.5 rounded text-sm" onClick={() => deleteRoom(r.id)}>Delete</button>
-                  </td> 
-              </tr>
-            ))}
-            {rooms.length === 0 && (
-              <tr>
-                <td className="px-3 py-4 text-sm text-slate-500" colSpan={4}>
-                  No rooms yet. Add one above.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    
-  )
-  async function deleteRoom(id) {
-    if (!window.confirm("Delete this room?")) return;
-
+    setPending(true);
+    setError("");
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/rooms/${id}`);
-      setRooms(prev => prev.filter(r => r.id !== id));
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete room");
+      if (room.id) {
+        const changes = Object.fromEntries(Object.entries(fields).filter(([key, value]) => value !== room[key]));
+        const { data } = await axios.put(URL + "/" + room.id, changes);
+        onSaved(data.id ? data : { ...room, ...changes });
+      } else {
+        const { data } = await axios.post(URL, fields);
+        onSaved(data);
+      }
+    } catch (failure) {
+      setError(errorMessage(failure, "Could not save the room. Try again."));
+    } finally {
+      setPending(false);
     }
   }
-  async function updateRoom(updatedRoom) {
+
+  async function remove() {
+    if (pending) return;
+    setPending(true);
+    setError("");
     try {
-      const res = await axios.put(
-        `${import.meta.env.VITE_API_URL}/rooms/${updatedRoom.id}`,
-        updatedRoom
-      );
-
-      setRooms(prev =>
-        prev.map(r => (r.id === updatedRoom.id ? res.data : r))
-      );
-
-      setEditingRoom(null);
-      load()
-    } catch (err) {
-      console.error(err);
-      alert("Failed to update room");
+      await axios.delete(URL + "/" + room.id);
+      onDeleted();
+    } catch (failure) {
+      setError(errorMessage(failure, "Could not delete the room. Try again."));
+      setConfirmDelete(false);
+    } finally {
+      setPending(false);
     }
   }
-  function StatusBadge({ status }) {
-    let color = 'bg-slate-200 text-slate-700'
-    if (status === 'clean') color = 'bg-emerald-100 text-emerald-700'
-    if (status === 'dirty') color = 'bg-rose-100 text-rose-700'
-    if (status === 'in-progress') color = 'bg-amber-100 text-amber-700'
 
-    return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${color}`}>
-        {status}
-      </span>
-    )
-
-  }
-
-
-
-}
-function Modal({ children, onClose }) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white p-4 rounded-xl shadow-xl relative w-full max-w-lg">
-        <button
-          onClick={onClose}
-          className="absolute right-3 top-3 text-slate-600 hover:text-slate-800"
-        >
-          ✖
-        </button>
-        {children}
+  return <WorkspaceDialog title={room.id ? "Edit room " + room.name : "Add room"} onClose={() => { if (!pending) onClose(); }}>
+    <form className="booking-editor" onSubmit={save}>
+      <div className="workspace-dialog-body space-y-3">
+        <fieldset className="workspace-form-grid" disabled={pending || confirmDelete}>
+          <label className="workspace-field">Room number<input className="workspace-input" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+          <label className="workspace-field">Room type<select className="workspace-input" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}>
+            {[...new Set([...roomTypes, form.type].filter(Boolean))].map((type) => <option key={type}>{type}</option>)}
+          </select></label>
+          <label className="workspace-field">Capacity<input className="workspace-input" type="number" min="1" required value={form.capacity} onChange={(event) => setForm({ ...form, capacity: event.target.value })} /></label>
+          <label className="workspace-field">Status<select className="workspace-input" value={form.status || ""} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+            {!statusLabels[form.status] && <option value={form.status || ""}>Status unset</option>}
+            {Object.entries(statusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+          </select></label>
+        </fieldset>
+        {error && <p className="workspace-alert" role="alert">{error}</p>}
       </div>
-    </div>
-  );
+      <div className="workspace-dialog-footer">
+        {confirmDelete ? <><span className="mr-auto text-sm font-semibold">Delete this room from the inventory?</span><button type="button" className="workspace-button" disabled={pending} onClick={() => setConfirmDelete(false)}>Cancel</button><button type="button" className="workspace-button workspace-danger" disabled={pending} onClick={remove}>Delete room</button></> :
+          <>
+            {room.id && <button type="button" className="workspace-button workspace-danger mr-auto" disabled={pending} onClick={() => setConfirmDelete(true)}>Delete room</button>}
+            <button type="button" className="workspace-button" disabled={pending} onClick={onClose}>Cancel</button>
+            <button className="workspace-button workspace-primary" disabled={pending}>{pending ? "Saving…" : "Save room"}</button>
+          </>}
+      </div>
+    </form>
+  </WorkspaceDialog>;
 }
-
-
-
 

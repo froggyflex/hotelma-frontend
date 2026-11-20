@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { DataFeedback, useWorkspaceData } from "../components/Workspace";
 import {
   CheckSquare,
   ListChecks,
@@ -11,29 +12,32 @@ import {
 const API = import.meta.env.VITE_API_URL;
 const PAGE_SIZE = 15;
 
+async function loadBookings(signal) {
+  const { data } = await axios.get(API + "/bookings", { signal });
+  if (!Array.isArray(data)) throw new Error("Invalid response");
+  return data;
+}
+
 export default function BookingExports() {
-  const [bookings, setBookings] = useState([]);
+  const resource = useWorkspaceData(loadBookings);
+  const { data, loading, error } = resource;
+  const [exportError, setExportError] = useState("");
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
   const [page, setPage] = useState(1);
 
-  /* LOAD BOOKINGS */
-  useEffect(() => {
-    axios.get(`${API}/bookings`).then(res => setBookings(res.data));
-  }, []);
-
   /* FILTERING */
   const filtered = useMemo(() => {
-    return bookings.filter(b => {
-      if (search && !b.guestName.toLowerCase().includes(search.toLowerCase()))
+    return (data || []).filter(b => {
+      if (search && !String(b.guestName || "").toLowerCase().includes(search.trim().toLowerCase()))
         return false;
       if (fromDate && b.checkIn < fromDate) return false;
       if (toDate && b.checkOut > toDate) return false;
       return true;
     });
-  }, [bookings, search, fromDate, toDate]);
+  }, [data, search, fromDate, toDate]);
 
   /* PAGINATION */
   const paginated = useMemo(() => {
@@ -48,7 +52,11 @@ export default function BookingExports() {
   /* RESET SELECTION ON PAGE/FILTER CHANGE */
   useEffect(() => {
     setSelectedIds([]);
-  }, [search, fromDate, toDate, page]);
+  }, [data, search, fromDate, toDate, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [data, search, fromDate, toDate]);
 
   /* SELECTION */
   const toggleSelect = (id) => {
@@ -68,27 +76,16 @@ export default function BookingExports() {
     paginated.every(b => selectedIds.includes(b.id));
 
   /* EXPORTS */
-  const exportCSV = (bookingIds) => {
+  async function exportBookings(bookingIds, format) {
     if (!bookingIds.length) return;
-    fetch(`${API}/api/exports/bookings/csv`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingIds })
-    })
-      .then(res => res.blob())
-      .then(blob => download(blob, "bookings.csv"));
-  };
-
-  const exportPDF = (bookingIds) => {
-    if (!bookingIds.length) return;
-    fetch(`${API}/api/exports/bookings/pdf`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingIds })
-    })
-      .then(res => res.blob())
-      .then(blob => download(blob, "bookings.pdf"));
-  };
+    setExportError("");
+    try {
+      const response = await axios.post(API + "/api/exports/bookings/" + format, { bookingIds }, { responseType: "blob" });
+      download(response.data, "bookings." + format);
+    } catch {
+      setExportError("Could not export the selected bookings. Try again.");
+    }
+  }
 
   const download = (blob, filename) => {
     const url = window.URL.createObjectURL(blob);
@@ -100,36 +97,35 @@ export default function BookingExports() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="workspace">
 
       {/* HEADER */}
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-800">
-          Booking Exports
-        </h1>
-        <p className="text-sm text-slate-500">
-          Select and export bookings in CSV or PDF format.
-        </p>
-      </div>
+      <header className="workspace-heading"><h1>Booking exports</h1></header>
+      <DataFeedback {...resource} />
+      {exportError && <p className="workspace-alert" role="alert">{exportError}</p>}
+      {data && <>
 
       {/* FILTERS */}
-      <div className="bg-white rounded-xl border p-4">
+      <div className="workspace-panel workspace-panel-body">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <input
-            className="border px-3 py-2 rounded text-sm"
+            className="workspace-input"
+            aria-label="Search guest"
             placeholder="Search guest"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           <input
             type="date"
-            className="border px-3 py-2 rounded text-sm"
+            className="workspace-input"
+            aria-label="Earliest check-in"
             value={fromDate}
             onChange={e => setFromDate(e.target.value)}
           />
           <input
             type="date"
-            className="border px-3 py-2 rounded text-sm"
+            className="workspace-input"
+            aria-label="Latest check-out"
             value={toDate}
             onChange={e => setToDate(e.target.value)}
           />
@@ -137,7 +133,7 @@ export default function BookingExports() {
       </div>
 
       {/* ACTION BAR */}
-      <div className="sticky top-0 z-10 bg-white border-y shadow-sm">
+      <div className="workspace-panel sticky top-0 z-10">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <span className="text-sm text-slate-600">
             {selectedIds.length
@@ -147,15 +143,15 @@ export default function BookingExports() {
 
           <div className="flex flex-wrap gap-2">
             <div className="flex gap-1 border rounded-lg p-1 bg-slate-50">
-              <button onClick={selectPage} className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white">
+              <button onClick={selectPage} className="workspace-button" aria-label="Select this page">
                 <CheckSquare size={16} />
                 <span className="hidden sm:inline">Page</span>
               </button>
-              <button onClick={selectAllFiltered} className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white">
+              <button onClick={selectAllFiltered} className="workspace-button" aria-label="Select all matching bookings">
                 <ListChecks size={16} />
                 <span className="hidden sm:inline">All</span>
               </button>
-              <button onClick={clearSelection} className="flex items-center gap-1 px-2 py-1 text-sm rounded hover:bg-white text-slate-500">
+              <button onClick={clearSelection} className="workspace-icon" aria-label="Clear selection">
                 <X size={16} />
               </button>
             </div>
@@ -163,16 +159,18 @@ export default function BookingExports() {
             <div className="flex gap-1 border rounded-lg p-1 bg-slate-50">
               <button
                 disabled={!selectedIds.length}
-                onClick={() => exportCSV(selectedIds)}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-white hover:bg-slate-100 disabled:opacity-40"
+                onClick={() => exportBookings(selectedIds, "csv")}
+                className="workspace-button"
+                aria-label="Export selected bookings as CSV"
               >
                 <FileSpreadsheet size={16} />
                 <span className="hidden sm:inline">CSV</span>
               </button>
               <button
                 disabled={!selectedIds.length}
-                onClick={() => exportPDF(selectedIds)}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+                onClick={() => exportBookings(selectedIds, "pdf")}
+                className="workspace-button workspace-primary"
+                aria-label="Export selected bookings as PDF"
               >
                 <FileText size={16} />
                 <span className="hidden sm:inline">PDF</span>
@@ -183,13 +181,14 @@ export default function BookingExports() {
       </div>
 
       {/* TABLE */}
-      <div className="bg-white rounded-xl border overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="workspace-panel workspace-table-wrap">
+        <table className="workspace-table">
           <thead className="bg-gray-100">
             <tr>
               <th className="px-3 py-2">
                 <input
                   type="checkbox"
+                  aria-label="Select bookings on this page"
                   checked={pageFullySelected}
                   onChange={e => e.target.checked ? selectPage() : clearSelection()}
                   className="w-5 h-5 accent-blue-600"
@@ -202,6 +201,7 @@ export default function BookingExports() {
             </tr>
           </thead>
           <tbody>
+            {!paginated.length && <tr><td colSpan={5} className="workspace-empty">No bookings match these filters.</td></tr>}
             {paginated.map(b => {
               const selected = selectedIds.includes(b.id);
               return (
@@ -212,6 +212,7 @@ export default function BookingExports() {
                   <td className="px-3 py-3">
                     <input
                       type="checkbox"
+                      aria-label={"Select " + b.guestName}
                       checked={selected}
                       onChange={e => {
                         e.stopPropagation();
@@ -223,6 +224,7 @@ export default function BookingExports() {
 
                   <td className="px-3 py-3 font-medium">
                     {b.guestName}
+                    {b.status === "no-show" && <span className="workspace-badge workspace-badge-warn ml-2">No-show</span>}
                     <div className="text-xs text-slate-500 sm:hidden">
                       {b.checkIn} – {b.checkOut}
                     </div>
@@ -239,9 +241,10 @@ export default function BookingExports() {
                     <button
                       onClick={e => {
                         e.stopPropagation();
-                        exportPDF([b.id]);
+                        exportBookings([b.id], "pdf");
                       }}
                       className="flex items-center gap-1 text-blue-600 hover:underline"
+                      aria-label={"Export PDF for " + b.guestName}
                     >
                       <FileText size={16} />
                       <span className="hidden sm:inline">PDF</span>
@@ -280,6 +283,7 @@ export default function BookingExports() {
           </div>
         </div>
       )}
+      </>}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import jsPDF from "jspdf";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { WorkspaceDialog } from "./Workspace";
+import { formatMoney } from "../utils/operations";
 import "jspdf-autotable";
 import QRCode from "qrcode";
 import axios from "axios";
@@ -9,49 +11,49 @@ const API = import.meta.env.VITE_API_URL;
 const INVOICE_URL = `${API}/api/invoices`;
  
 
-export default function InvoicePreview({ payload, booking,mark, close }) {
-  if (!payload || !booking) return null;
+export default function InvoicePreview({ payload, booking, mark, close, onSubmitted, history = false }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(null);
+  const currentMark = sent?.mark || (mark === "PENDING" || mark === "-" ? null : mark);
+  const header = payload?.invoiceHeader || {};
+  const customer = payload?.customer || {};
+  const lines = Array.isArray(payload?.invoiceDetails) ? payload.invoiceDetails : [];
+  const canDownload = Boolean(header.issueDate && lines.length >= 2 && Number.isFinite(Number(payload?.totalAmount)));
 
-  payload.bookingInfo = booking;
-  const submit = () => {
-    axios
-      .post(`${INVOICE_URL}/submit`, payload)
-      .then((res) => {
-        const data = res.data || {};
-        let aadeMark = null;
- 
-        if (data.mark) {
-          aadeMark = data.mark; 
-        }
-
-        alert("Invoice submitted!\nMARK: " + (aadeMark || "N/A")); 
-        close();
-      })
-      .catch((err) => {
-        console.error("Submission error", err);
-        alert(
-          "Submission error: " +
-            JSON.stringify(err.response?.data || err.message)
-        );
-      });
-  };
+  async function submit() {
+    if (submitting || currentMark || history) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const { data } = await axios.post(INVOICE_URL + "/submit", { ...payload, bookingInfo: booking });
+      if (!data.success || !data.mark) throw new Error("No MARK returned");
+      setSent(data);
+    } catch (failure) {
+      const response = failure.response?.data;
+      setError(response?.errors?.map((entry) => entry.message).filter(Boolean).join(" ") ||
+        "AADE submission could not be confirmed. Check the invoice register before trying again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
 const generatePDF = async () => {
   const doc = new jsPDF();
 
   const issuer = payload.issuer || {};
-  const customer = payload.customer || {};
+  
   const bookingInfo = payload.bookingInfo || booking;
   const accom = payload.invoiceDetails[0] || {};
   const taxLine = payload.invoiceDetails[1] || {};
-  const markA = mark || "PENDING";
+  const markA = currentMark || "PENDING";
 
   // ---------- HEADER ----------
   doc.setFontSize(18);
   doc.text("INVOICE", 14, 18);
 
   // QR
-  const qrData = `MARK:${markA}|AFM:${issuer.vatNumber}|DATE:${payload.invoiceHeader.issueDate}|AMOUNT:${payload.totalAmount.toFixed(2)}`;
+  const qrData = `MARK:${markA}|AFM:${issuer.vatNumber}|DATE:${payload.invoiceHeader.issueDate}|AMOUNT:${Number(payload.totalAmount || 0).toFixed(2)}`;
   const qrImage = await QRCode.toDataURL(qrData);
   doc.addImage(qrImage, "PNG", 155, 10, 40, 40);
 
@@ -86,12 +88,12 @@ const generatePDF = async () => {
   doc.setFontSize(10);
   doc.text(`Invoice Type: ${payload.invoiceHeader.invoiceType}`, 110, 38);
   doc.text(`Issue Date: ${payload.invoiceHeader.issueDate}`, 110, 43);
-  doc.text(`AA (Number): ${payload.invoiceHeader.aa || "-"}`, 110, 48);
+  doc.text(`AA (Number): ${sent?.aa || header.aa || "-"}`, 110, 48);
   doc.text(`MARK: ${markA}`, 110, 53);
 
-  doc.text(`Room: ${bookingInfo.room}`, 110, 63);
-  doc.text(`Check-in: ${bookingInfo.checkIn}`, 110, 68);
-  doc.text(`Check-out: ${bookingInfo.checkOut}`, 110, 73);
+  doc.text(`Room: ${bookingInfo.room || "-"}`, 110, 63);
+  doc.text(`Check-in: ${bookingInfo.checkIn || "-"}`, 110, 68);
+  doc.text(`Check-out: ${bookingInfo.checkOut || "-"}`, 110, 73);
   doc.text(`Nights: ${payload.nights}`, 110, 78);
   doc.text(`Channel: ${bookingInfo.channel || "-"}`, 110, 83);
 
@@ -103,20 +105,20 @@ const generatePDF = async () => {
     ],
     body: [
       [
-        accom.description,
+        accom.description || "Accommodation",
         payload.nights,
-        payload.rate.toFixed(2),
-        accom.netValue.toFixed(2),
-        accom.vatAmount.toFixed(2),
+        Number(payload.rate || 0).toFixed(2),
+        Number(accom.netValue || 0).toFixed(2),
+        Number(accom.vatAmount || 0).toFixed(2),
         (accom.netValue + accom.vatAmount).toFixed(2),
       ],
       [
-        taxLine.description,
+        taxLine.description || "Accommodation tax",
         payload.nights,
-        taxLine.unitPrice.toFixed(2),
-        taxLine.netValue.toFixed(2),
+        Number(taxLine.unitPrice || 0).toFixed(2),
+        Number(taxLine.netValue || 0).toFixed(2),
         "0.00",
-        taxLine.netValue.toFixed(2),
+        Number(taxLine.netValue || 0).toFixed(2),
       ],
     ],
   });
@@ -133,14 +135,14 @@ const generatePDF = async () => {
     14,
     finalY + 6
   );
-  doc.text(`VAT Total: ${accom.vatAmount.toFixed(2)} €`, 14, finalY + 12);
-  doc.text(`Other Taxes: ${taxLine.netValue.toFixed(2)} €`, 14, finalY + 18);
-  doc.text(`Total Amount: ${payload.totalAmount.toFixed(2)} €`, 14, finalY + 24);
+  doc.text(`VAT Total: ${Number(accom.vatAmount || 0).toFixed(2)} €`, 14, finalY + 12);
+  doc.text(`Other Taxes: ${Number(taxLine.netValue || 0).toFixed(2)} €`, 14, finalY + 18);
+  doc.text(`Total Amount: ${Number(payload.totalAmount || 0).toFixed(2)} €`, 14, finalY + 24);
 
   // ---------- FOOTER ----------
   doc.setFontSize(9);
   doc.text(
-    `This invoice is electronically transmitted to AADE. MARK: ${markA}`,
+    currentMark ? `Submitted to AADE. MARK: ${markA}` : "Draft invoice. Pending submission to AADE.",
     14,
     finalY + 35
   );
@@ -151,59 +153,45 @@ const generatePDF = async () => {
 };
 
 
-  const customer = payload.customer;
-  const alreadySent = !!mark && mark !== "PENDING";
+
+  async function download() {
+    try {
+      await generatePDF();
+    } catch {
+      setError("Could not create the PDF for this invoice.");
+    }
+  }
+
+  function handleClose() {
+    if (submitting) return;
+    if (sent && onSubmitted) onSubmitted();
+    else close();
+  }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg space-y-4">
-        <h2 className="text-xl font-bold">Confirm Submission</h2>
-
-        <div className="text-sm border rounded p-3 bg-slate-50">
-          <p>
-            <b>Customer:</b> {customer.name}
-          </p>
-          <p>
-            <b>Total:</b> {payload.totalAmount.toFixed(2)} €
-          </p>
-          <p>
-            <b>Invoice Type:</b>{" "}
-            {payload.invoiceHeader.invoiceType === "1.1"
-              ? "Business Invoice (B2B)"
-              : "Retail Receipt (B2C)"}
-          </p>
+    <WorkspaceDialog title={history ? "Invoice details" : "Review invoice"} onClose={handleClose}>
+      <div className="workspace-dialog-body space-y-4">
+        <div className="workspace-form-grid text-sm">
+          <div><p className="workspace-muted">Customer</p><strong>{customer.name || booking?.guestName || "—"}</strong></div>
+          <div><p className="workspace-muted">Total</p><strong>{payload.totalAmount == null ? "—" : formatMoney(payload.totalAmount)}</strong></div>
+          <div><p className="workspace-muted">Invoice type</p><strong>{header.invoiceType === "1.1" ? "Business (B2B)" : header.invoiceType === "11.3" ? "Touristic (B2C)" : header.invoiceType || "—"}</strong></div>
+          <div><p className="workspace-muted">Issue date</p><strong>{header.issueDate || "—"}</strong></div>
+          {(sent?.aa || header.aa) ? <div><p className="workspace-muted">Invoice number</p><strong>{sent?.series || header.series} / {sent?.aa || header.aa}</strong></div> : null}
+          {currentMark && <div><p className="workspace-muted">AADE MARK</p><strong className="break-all">{currentMark}</strong></div>}
         </div>
-
-        <div className="flex gap-4">
-        {alreadySent ? (
-          <div className="flex-1 bg-green-100 text-green-700 p-2 rounded shadow text-center border border-green-300">
-            ✔ Already Submitted  
-            <div className="text-xs text-green-600 mt-1">MARK: {mark}</div>
-          </div>
-        ) : (
-          <button
-            onClick={submit}
-            className="flex-1 bg-green-600 text-white p-2 rounded shadow hover:bg-green-700"
-          >
-            ✔ Submit to AADE
-          </button>
-        )}
-
-          <button
-            onClick={generatePDF}
-            className="flex-1 bg-blue-500 text-white p-2 rounded shadow hover:bg-blue-600"
-          >
-            🧾 PDF
-          </button>
-
-          <button
-            onClick={close}
-            className="flex-1 bg-gray-300 p-2 rounded hover:bg-gray-400"
-          >
-            ✖ Cancel
-          </button>
-        </div>
+        {lines.length > 0 && <div className="workspace-panel">
+          {lines.map((line, index) => <div className="workspace-row text-sm" key={line.lineNumber ?? index}>
+            <span>{line.description || "Invoice line"}</span><span>{formatMoney(line.netValue)} net · {formatMoney(line.vatAmount)} VAT</span>
+          </div>)}
+        </div>}
+        {currentMark && <p className="workspace-badge workspace-badge-ready" role="status">Submitted to AADE</p>}
+        {error && <p className="workspace-alert" role="alert">{error}</p>}
       </div>
-    </div>
+      <div className="workspace-dialog-footer">
+        <button className="workspace-button" disabled={submitting} onClick={handleClose}>Close</button>
+        {canDownload && <button className="workspace-button" disabled={submitting} onClick={download}>Download PDF</button>}
+        {!history && !currentMark && <button className="workspace-button workspace-primary" disabled={submitting} onClick={submit}>{submitting ? "Submitting…" : "Submit to AADE"}</button>}
+      </div>
+    </WorkspaceDialog>
   );
 }

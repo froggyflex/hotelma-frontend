@@ -1,1816 +1,202 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import "../styles/booking-workspace.css";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
-import OfferTemplate from "../components/OfferTemplate";
- 
+import { addDays, addMonths, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
+import { CalendarDays, ChevronLeft, ChevronRight, List, Plus, Search } from "lucide-react";
+import { DataFeedback, useWorkspaceData, WorkspaceDialog } from "../components/Workspace";
+import BookingAvailability from "../components/BookingAvailability";
+import BookingCalendar from "../components/BookingCalendar";
+import BookingEditor from "../components/BookingEditor";
+import loadStays from "../utils/loadStays";
+import { API, balanceDue, errorMessage, formatMoney, isActiveBooking, overlapsStay, todayAtHotel } from "../utils/operations";
 
-import {
-  add,
-  eachDayOfInterval,
-  format,
-  startOfWeek,
-  endOfWeek,
-  isWithinInterval,
-  parseISO,
-  startOfDay,
-  startOfMonth,
-  endOfMonth,
-  isBefore,
-  addDays,
-  addMonths,
-  isAfter,
-  differenceInDays,
+const URL = API + "/bookings";
+const toDate = (date) => format(date, "yyyy-MM-dd");
+const humanDate = (date) => format(parseISO(date), "d MMM yyyy");
 
-  differenceInCalendarDays,   // ⬅️ add this
-} from "date-fns";
-
-import {
-  DndContext,
-  useDraggable,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCenter,
-  DragOverlay
-} from "@dnd-kit/core";
-
-import {
-  restrictToParentElement,
-  restrictToWindowEdges,
-} from "@dnd-kit/modifiers";
- import { CSS } from "@dnd-kit/utilities";
-
- 
-const API = import.meta.env.VITE_API_URL;
-const URL = `${API}/bookings`;
-const URLR = `${API}/rooms`;
- 
-const isMobile = window.matchMedia("(max-width: 768px)").matches;
-
-function DraggableBooking({
-  booking,
-  roomIndex,
-  children
-}) {
-  const {
-    setNodeRef,
-    listeners,
-    attributes,
-    transform
-  } = useDraggable({
-    id: booking.id,
-    data: { booking, roomIndex }
-  });
-
-  return children({
-    setNodeRef,
-    listeners,
-    attributes,
-    transform
-  });
-}
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-];
-
-const ROOM_LABEL_WIDTH = 80;
-const ROW_HEIGHT = 60;
- 
-/*******************************
- * RESPONSIVE MONTHLY CALENDAR
- *******************************/
-
-function MonthlyCalendar({
-  monthDate,
-  rooms,
-  bookings,
-  onPrevMonth,
-  onNextMonth,
-  onSetMonth,  
-  onMoveBooking,
-  onEditBooking
-
-}) {
-  
-  
-
-  const monthStart = startOfMonth(monthDate);
-  const monthEnd = endOfMonth(monthDate);
-  const monthEndExclusive = addDays(monthEnd, 1);
-
-  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-  // Responsive day width
-  const gridRef = useRef(null);
-  const [dayWidth, setDayWidth] = useState(80); // fallback initial
-
+function useMobileAgenda() {
+  const query = "(max-width: 740px)";
+  const [mobile, setMobile] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
-    if (!gridRef.current) return;
-
-    const ro = new ResizeObserver(() => {
-      const fullWidth = gridRef.current.clientWidth - ROOM_LABEL_WIDTH;
-      setDayWidth(fullWidth / days.length);
-    });
-
-    ro.observe(gridRef.current);
-    return () => ro.disconnect();
-  }, [days.length]);
-
-  const [dragging, setDragging] = useState(null);
-
-  const getDayIndex = (date) => differenceInCalendarDays(date, monthStart);
-  const getDateFromIndex = (index) => addDays(monthStart, index);
-
-  const onDragStart = (e, booking) => {
-    setDragging({ booking });
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const onDragOver = (e) => e.preventDefault();
-
-  const onDrop = (e, room) => {
-    if (!dragging) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-
-    let index = Math.floor(x / dayWidth);
-    if (index < 0) index = 0;
-    if (index > days.length - 1) index = days.length - 1;
-
-    const newCheckIn = getDateFromIndex(index);
-
-    const oldCI = parseISO(dragging.booking.checkIn);
-    const oldCO = parseISO(dragging.booking.checkOut);
-    const duration = differenceInCalendarDays(oldCO, oldCI);
-
-    const newCO = addDays(newCheckIn, duration);
-
-    onMoveBooking({
-      id: dragging.booking.id,
-      room: room.name,
-      checkIn: format(newCheckIn, "yyyy-MM-dd"),
-      checkOut: format(newCO, "yyyy-MM-dd"),
-    });
-
-    setDragging(null);
-  };
-
-  // Build row-based booking positions
-  const rows = rooms.map((room) => {
-    // Filter only bookings overlapping with the visible month
-    const list = bookings
-      .filter(b => b.room === room.name)
-      .filter(b => {
-        const ci = parseISO(b.checkIn);
-        const co = parseISO(b.checkOut);
-        // overlap condition
-        return !(co <= monthStart || ci >= monthEndExclusive);
-      });
-
-    return list.map((b, i) => {
-      const rawCI = parseISO(b.checkIn);
-      const rawCO = parseISO(b.checkOut);
-
-      // Clip to visible month
-      const visibleStart = rawCI < monthStart ? monthStart : rawCI;
-      const visibleEnd = rawCO > monthEndExclusive ? monthEndExclusive : rawCO;
-
-      let startIndex = getDayIndex(visibleStart);
-      let endIndex = getDayIndex(visibleEnd) - 1; // check-out exclusive
-
-      if (endIndex < startIndex) endIndex = startIndex;
-
-      const span = endIndex - startIndex + 1;
-
-      return {
-        ...b,
-        startIndex,
-        width: span * dayWidth - 4,
-        left: startIndex * dayWidth,
-        continuedLeft: rawCI < monthStart,
-        continuedRight: rawCO > monthEndExclusive,
-        colorIndex: i % 2,
-      };
-    });
-  });
-
-  return (
-    <div className="mt-4">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4 px-1">
-        <button
-          onClick={onPrevMonth}
-          className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200"
-        >
-          ◀ Prev
-        </button>
-<div className="mt-4">
-        {/* Month dropdown */}
-          <select
-            value={monthDate.getMonth()}
-            onChange={(e) => {
-              const newMonth = Number(e.target.value);
-              const d = new Date(monthDate);
-              d.setMonth(newMonth);
-              onSetMonth(d);
-            }}
-            className="px-2 py-1 rounded-md border border-slate-300
-                      bg-white text-sm font-medium
-                      focus:ring-2 focus:ring-sky-400"
-          >
-            {MONTHS.map((m, i) => (
-              <option key={m} value={i}>
-                {m}
-              </option>
-            ))}
-          </select>
-              
-          {/* Year dropdown */}
-          <select
-            value={monthDate.getFullYear()}
-            onChange={(e) => {
-              const newYear = Number(e.target.value);
-              const d = new Date(monthDate);
-              d.setFullYear(newYear);
-              onSetMonth(d);
-            }}
-            className="px-2 py-1 rounded-md border border-slate-300
-                      bg-white text-sm font-medium
-                      focus:ring-2 focus:ring-sky-400"
-          >
-            {Array.from({ length: 5 }).map((_, i) => {
-              const year = new Date().getFullYear() - 1 + i;
-              return (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              );
-            })}
-          </select>
- </div>
- 
-        <button
-          onClick={onNextMonth}
-          className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200"
-        >
-          Next ▶
-        </button>
-      </div>
-
-      {/* Grid wrapper (resize observed) */}
-      <div
-        ref={gridRef}
-        className="border border-slate-300 rounded overflow-hidden w-full"
-
-        
-      >
-        {/* Header days */}
-        <div className="flex border-b bg-slate-100 text-center">
-          <div
-            style={{ width: ROOM_LABEL_WIDTH }}
-            className="border-r p-2 font-medium"
-          >
-            Rooms
-          </div>
-
-          {days.map((d) => (
-            <div
-              key={d.toISOString()}
-              style={{ width: dayWidth }}
-              title={format(d, "EEEE, d MMMM yyyy")}
-              className={`min-w-0 border-r px-0.5 py-1.5 ${
-                d.getDay() === 0 || d.getDay() === 6 ? "bg-slate-200" : "bg-slate-100"
-              }`}
-            >
-              <span className="block truncate text-[10px] font-medium uppercase tracking-tight text-slate-500">
-                {format(d, "EEE")}
-              </span>
-              <span className="block text-sm font-semibold leading-4 text-slate-800">
-                {format(d, "d")}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Rows */}
-        {rooms.map((room, rowIndex) => (
-          <div key={room.id} className="flex border-b">
-            {/* Room label */}
-            <div
-              style={{ width: ROOM_LABEL_WIDTH }}
-              className="border-r p-2 font-medium"
-            >
-              {room.name}
-            </div>
-
-            {/* Row grid */}
-            <div
-              className="relative"
-              style={{ height: ROW_HEIGHT, width: dayWidth * days.length,  }}
-              onDragOver={onDragOver}
-              onDrop={(e) => onDrop(e, room)}
-              
-            >
-              {/* background grid */}
-              <div className="absolute inset-0 flex h-full">
-                {days.map((d) => (
-                  <div
-                    key={d.toISOString()}
-                    style={{ width: dayWidth }}
-                    className={`h-full border-b border-r border-slate-300 ${
-                      d.getDay() === 0 || d.getDay() === 6 ? "bg-slate-50" : "bg-white"
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {/* BOOKING CARDS */}
-              {rows[rowIndex].map((b) => (
-                <div
-                  key={b.id}
-                  draggable
-                  onDragStart={(e) => onDragStart(e, b)}
-                  onClick={() => onEditBooking(b)}
-                  className={`  absolute top-1 h-[42px] rounded px-2 py-1 shadow flex items-center cursor-pointer ${
-                    b.colorIndex === 0
-                      ? "bg-blue-200 border border-blue-500"
-                      : "bg-blue-300 border border-blue-600"
-                  }`}
-                  style={{
-                    width: b.width,
-                    left: b.left,
-                  }}
-                   
-                >
-                  {b.continuedLeft && (
-                    <span className="mr-1 text-xs font-bold text-slate-700">
-                      ◀
-                    </span>
-                  )}
-
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate max-w-full">{b.guestName}</div>
-                    <div className="text-xs opacity-80 truncate">
-                      {b.channel} • €{b.price}/night • {Math.max(
-                                                        1,
-                                                        Math.ceil(
-                                                          (new Date(b.checkOut) -
-                                                            new Date(b.checkIn)) /
-                                                            (1000 * 60 * 60 * 24)
-                                                        )
-                                                      )} nights
-                    </div>
-                  </div>
-
-                  {b.continuedRight && (
-                    <span className="ml-1 text-xs font-bold text-slate-700">
-                      ▶
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-}
-
-function MobileAgenda({ bookings, monthDate, onEditBooking }) {
-  const monthStart = startOfMonth(monthDate);
-  const monthEnd = endOfMonth(monthDate);
-
-  const visible = bookings
-    .filter(b => {
-      const ci = parseISO(b.checkIn);
-      const co = parseISO(b.checkOut);
-      return !(co < monthStart || ci > monthEnd);
-    })
-    .sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
-
-  return (
-    <div className="space-y-3">
-       {}
-      {visible.map(b => (
-        <button
-          key={b.id}
-          onClick={() => onEditBooking(b)}
-          className="w-full text-left p-4 bg-white rounded-xl border shadow-sm
-                     flex justify-between items-center"
-        >
-          <div>
-            <div className="font-semibold">{b.guestName}</div>
-            <div className="text-sm text-slate-600">
-              Room {b.room}
-            </div>
-            <div className="text-xs text-slate-500">
-              {b.checkIn} → {b.checkOut}
-            </div>
-          </div>
-
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-            {differenceInCalendarDays(
-              new Date(b.checkOut),
-              new Date(b.checkIn)
-            )} nights
-          </span>
-        </button>
-      ))}
-
-      {visible.length === 0 && (
-        <div className="text-center text-slate-500 text-sm py-8">
-          No bookings this month
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-/* -------------------------------------------------------
-   MAIN COMPONENT
-------------------------------------------------------- */
-export default function Bookings() {
-
-
- 
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [requestResults, setRequestResults] = useState(null);
-  
-
-  const [monthDate, setMonthDate] = useState(startOfMonth(new Date()));
-  /* ------------------------- TABS -------------------------- */
-  const [tab, setTab] = useState("month");
-
-  /* ------------------------- DATA -------------------------- */
-  const [bookings, setBookings] = useState([]);
-  const [rooms, setRooms] = useState([]);
-
-  /* ------------------------ MODALS ------------------------- */
-  const [newBookingOpen, setNewBookingOpen] = useState(false);
-  const [editingBooking, setEditingBooking] = useState(null);
-
-  /* ------------------ AVAILABILITY CHECKER ----------------- */
-  const [checkInReq, setCheckInReq] = useState("");
-  const [checkOutReq, setCheckOutReq] = useState("");
-  // const [guestCountReq, setGuestCountReq] = useState(2);
-  // const [checkerResult, setCheckerResult] = useState(null);
-
-
-  const [adultsReq, setAdultsReq] = useState(2);
-  const [kidsReq, setKidsReq] = useState(0);
-  const [availableTypes, setAvailableTypes] = useState([]);
-  const [selectedType, setSelectedType] = useState(null);
-  const [offerData, setOfferData] = useState(null);
-  /* ---------------------- CALENDAR WEEK --------------------- */
-  const [weekStart, setWeekStart] = useState(
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-
-  
-  const [activeBooking, setActiveBooking] = React.useState(null);
-
-  const weekDays = useMemo(
-    () => eachDayOfInterval({ start: weekStart, end: weekEnd }),
-    [weekStart]
-  );
-
- 
-  function deleteBooking(id) {
-    // The API deletion has already succeeded when this callback runs. Update the
-    // Gantt immediately instead of fetching again (or asking for confirmation twice).
-    setBookings((prev) => prev.filter((b) => String(b.id) !== String(id)));
-    setSearchResults((prev) => prev.filter((b) => String(b.id) !== String(id)));
-    setEditingBooking(null);
-  }
-
-  function upsertBooking(savedBooking) {
-    if (!savedBooking?.id) return;
-
-    setBookings((prev) => {
-      const exists = prev.some((b) => String(b.id) === String(savedBooking.id));
-      return exists
-        ? prev.map((b) => String(b.id) === String(savedBooking.id) ? savedBooking : b)
-        : [...prev, savedBooking];
-    });
-  }
-    
-    const bookingsByMonth = React.useMemo(() => {
-      const map = {};
-
-      bookings.forEach((b) => {
-        const month = format(parseISO(b.checkIn), "MMMM yyyy");
-        
-        map[month] = (map[month] || 0) + 1;
-      });
-
-      return Object.entries(map); // [["November 2025", 12], ["December 2025", 8]...]
-    }, [bookings]);
-
-
-    const handleSearch = (text) => {
-      setSearchTerm(text);
-
-      if (!text.trim()) {
-        setSearchResults([]);
-        return;
-      }
-
-      const lower = text.toLowerCase();
-
-      const results = bookings.filter((b) =>
-        b.guestName.toLowerCase().includes(lower) ||
-        b.room.toLowerCase().includes(lower) ||
-        b.channel.toLowerCase().includes(lower) ||
-        b.notes.toLowerCase().includes(lower) ||
-        b.checkIn.includes(lower) ||
-        b.checkOut.includes(lower) ||
-        String(b.price).includes(lower)
-      );
-
-      setSearchResults(results);
-    };
-  /* ------------------------ LOAD DATA ------------------------ */
-  useEffect(() => {
-    axios.get(URL).then((res) => setBookings(res.data || []));
-    fetch(URLR)
-      .then((res) => res.json())
-      .then((data) => setRooms(data || []));
+    const media = window.matchMedia(query);
+    const change = () => setMobile(media.matches);
+    media.addEventListener("change", change);
+    change();
+    return () => media.removeEventListener("change", change);
   }, []);
-
-  /* --------------------- DATE OVERLAP LOGIC ------------------ */
-  const overlaps = (booking, day) => {
-    const ci = parseISO(booking.checkIn);
-    const co = parseISO(booking.checkOut);
-    return isWithinInterval(day, { start: ci, end: add(co, { days: -1 }) });
-  };
-
-  /* --------------------- OCCUPANCY PER DAY ------------------- */
-  const occupancy = useMemo(() => {
-    return weekDays.map((day) => {
-      const occupied = bookings.filter((b) => overlaps(b, day)).length;
-      return { date: day, occupied, total: rooms.length };
-    });
-  }, [weekDays, bookings, rooms]);
-
-
-  const handleMoveBooking = async (updated) => {
-  try {
-    const response = await axios.put(`${API}/bookings/${updated.id}`, updated);
-    upsertBooking(response.data);
-  } catch (error) {
-    alert(error.response?.data?.error || "This booking cannot be moved to that room or date.");
-  }
-  };
-
-  /* -------------------------------------------------------
-     BOOKING REQUEST CHECKER
-  --------------------------------------------------------- */
-    const roomIsFreeForBooking = (roomName, booking, allBookings) => {
-    const start = parseISO(booking.checkIn);
-    const end = add(parseISO(booking.checkOut), { days: -1 });
-
-    return !allBookings.some(b => {
-      if (b.room !== roomName || b.id === booking.id) return false;
-
-      const bStart = parseISO(b.checkIn);
-      const bEnd = add(parseISO(b.checkOut), { days: -1 });
-
-      return (
-        isWithinInterval(bStart, { start, end }) ||
-        isWithinInterval(bEnd, { start, end }) ||
-        isWithinInterval(start, { start: bStart, end: bEnd })
-      );
-    });
-  };
-
-  const findValidSwaps = (checkInReq, checkOutReq, rooms, bookings) => {
-  const requestBooking = { checkIn: checkInReq, checkOut: checkOutReq };
-
-  const swaps = [];
-
-  for (const room of rooms) {
-    const roomBookings = bookings.filter(b => b.room === room.name);
-
-    // If room is already free for the requested dates → no need for a swap
-    if (roomIsFreeForBooking(room.name, requestBooking, bookings))
-      continue;
-
-    // Try moving each booking out of this room
-    for (const existingBooking of roomBookings) {
-      const guestCount = existingBooking.adults + existingBooking.kids;
-
-      for (const targetRoom of rooms) {
-        if (targetRoom.name === room.name) continue;
-        if (targetRoom.capacity < guestCount) continue;
-
-        // Check if moved booking fits in target room
-        if (
-          roomIsFreeForBooking(
-            targetRoom.name,
-            existingBooking,
-            bookings
-          )
-        ) {
-          // Check if this frees up the original room
-          const hypothetical = bookings
-            .filter(b => b.id !== existingBooking.id)
-            .concat({ ...existingBooking, room: targetRoom.name }); // moved booking
-
-          if (roomIsFreeForBooking(room.name, requestBooking, hypothetical)) {
-            swaps.push({
-              moveBooking: existingBooking,
-              from: room.name,
-              to: targetRoom.name
-            });
-          }
-        }
-      }
-    }
-  }
-
-  return swaps;
-  };
-
-    const handleCheckerRequest = async () => {
-      setAvailableTypes([]);
-      setSelectedType(null);
-
-      if (!checkInReq || !checkOutReq) {
-        alert("Please select dates.");
-        return;
-      }
-
-      try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/availability`,
-          {
-            params: {
-              start: checkInReq,
-              end: checkOutReq,
-              adults: adultsReq,
-              kids: kidsReq
-            }
-          }
-        );
-
-        setAvailableTypes(res.data.options);
-
-      } catch (err) {
-        console.error("Availability error:", err);
-        alert("Could not fetch room availability.");
-      }
-    };
-
-  const findFreeRoomsForRange = (checkIn, checkOut, rooms, bookings) => {
-    const dummyBooking = { checkIn, checkOut };
-    return rooms.filter(room =>
-      roomIsFreeForBooking(room.name, dummyBooking, bookings)
-    );
-  };
-  const checkAvailability = () => {
-  if (!checkInReq || !checkOutReq) return;
-
-  const start = parseISO(checkInReq);
-  const end = parseISO(checkOutReq);
-  const reqRange = eachDayOfInterval({ start, end: add(end, { days: -1 }) });
-
-  // Rooms free without swap
-  const freeRooms = rooms.filter((room) => {
-    const roomBookings = bookings.filter((b) => b.room === room.name);
-
-    return !roomBookings.some((b) => {
-      const bStart = parseISO(b.checkIn);
-      const bEnd = add(parseISO(b.checkOut), { days: -1 });
-
-      return reqRange.some((day) =>
-        isWithinInterval(day, { start: bStart, end: bEnd })
-      );
-    });
-  }); 
-
-  // Rooms possible WITH swap (capacity-based)
-    const validSwaps = findValidSwaps(
-      checkInReq,
-      checkOutReq,
-      rooms,
-      bookings
-    );
-
-    setRequestResults({
-      freeRooms,
-      validSwaps
-    });
-
-    };
-
-    const handleSetMonth = (date) => {
-      setMonthDate(date);
-    };
-
-        // Group bookings by year → month
-    const bookingsByYearMonth = bookings.reduce((acc, b) => {
-      const d = new Date(b.checkIn);
-      const y = d.getFullYear();
-      const m = d.getMonth();
-
-      acc[y] ??= Array(12).fill(0);
-      acc[y][m] += 1;
-
-      return acc;
-    }, {});
-
-    const years = Object.keys(bookingsByYearMonth)
-      .map(Number)
-      .sort((a, b) => a - b);
-
-    // Helper: density class
-    const getDensityClass = (count) => {
-      if (count >= 20) return "bg-blue-600 text-white";
-      if (count >= 10) return "bg-blue-400 text-white";
-      if (count > 0) return "bg-blue-100 text-blue-700";
-      return "bg-white text-slate-400";
-    };
-  /* -------------------------------------------------------
-     RENDER
-  --------------------------------------------------------- */
-  return (
-    
-      <div className="w-full px-4 py-4">
-      <div className="max-w-6xl mx-auto space-y-4">
-      <div className="">
-        <input
-          type="text"
-          placeholder="Search bookings…"
-          className="w-full p-2 border rounded shadow-sm focus:ring focus:ring-blue-200"
-          value={searchTerm}
-          onChange={(e) => handleSearch(e.target.value)}                  
-        />
-        <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl shadow-md">
-          <h3 className="font-semibold mb-2">📅 Monthly Overview</h3>
-
-          <div className="mb-6 rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                📅 Booking Timeline
-              </h3>
-              <span className="text-xs text-slate-500">
-                 Quick jump by year & month
-              </span>
-            </div>
-
-             
-              {/* Year selector */}
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {years.map((year) => (
-                  <button
-                    key={year}
-                    onClick={() =>
-                      setMonthDate(new Date(year, monthDate.getMonth(), 1))
-                    }
-                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap 
-                      ${
-                        year === monthDate.getFullYear()
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100"
-                      }`}
-                      style={{"border":"2px solid lightblue"}}
-                  >
-                    {year}
-                  </button>
-                ))}
-              </div>
-
-              {/* Month strip */}
-              <div className=" ">
-                <div className="flex gap-2 overflow-x-auto sm:grid sm:grid-cols-12 sm:gap-2 pb-2" style={{"padding":'10px'}}>
-                  {Array.from({ length: 12 }).map((_, m) => {
-                    const year = monthDate.getFullYear();
-                    const count = bookingsByYearMonth[year]?.[m] || 0;
-                    const isActive = m === monthDate.getMonth();
-
-                    return (
-                      <button
-                        key={m}
-                        onClick={() => setMonthDate(new Date(year, m, 1))}
-                        title={`${format(new Date(year, m, 1), "MMMM yyyy")} — ${count} bookings`}
-                        className={`relative min-w-[64px] sm:min-w-0
-                                      px-3 py-2 rounded-lg text-sm font-medium
-                                      flex items-center justify-center
-                          ${getDensityClass(count)}
-                          ${isActive ? "ring-2 ring-blue-500" : "border-slate-300"}
-                        `}
-                      >
-                        {format(new Date(2000, m, 1), "MMM")}
-
-                        {count > 0 && (
-                          <span className="absolute -top-1 -right-1
-                                            w-6 h-6 rounded-full
-                                            bg-black text-white text-xs
-                                            flex items-center justify-center
-                          ">
-                            {count}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-             
-            {/* Footer hint */}
-            <p className="mt-3 text-xs text-slate-500 hidden sm:block">
-            Highlight intensity reflects booking volume
-            </p>
-          </div>
-        </div>
-
-        </div>    
-         
-
-        {/* Results Dropdown */}
-        {searchResults.length > 0 && (
-
-          
-          <div style={{margin: '0 auto',width:'50%',top:'50'}} className="absolute left-0 right-0 mt-1 bg-white border rounded shadow-lg max-h-64 overflow-y-auto z-50">
-            {searchResults.map((b) => (
-              <button
-                key={b.id}
-                className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b"
-                onClick={() => {
-                  setSearchTerm("");
-                  setSearchResults([]);
-                  setEditingBooking(b);  // opens the edit modal
-                }}
-              >
-                <div className="font-semibold">{b.guestName}</div>
-                <div className="text-xs text-slate-500">
-                  Room {b.room} • {b.checkIn} → {b.checkOut}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      
-
-      {/* ---------------------- TABS ---------------------- */}
-      <div className="flex space-x-3 border-b pb-2">
-        <button
-             
-          className={`pb-1 ${
-            tab === "calendar"
-              ? "border-b-2 border-blue-500 font-semibold"
-              : "text-gray-500"
-          }`}
-        >
-          Calendar View - Drag and Drop
-        </button>
-
-        {/* <button
-            onClick={() => {
-              setTab("list");
-              setActiveBooking(null);    
-            }}
-          className={`pb-1 ${
-            tab === "list"
-              ? "border-b-2 border-blue-500 font-semibold"
-              : "text-gray-500"
-          }`}
-        >
-          List View
-        </button> */}
-      </div>
-      {/* ------------------ CALENDAR VIEW ------------------ */}
-      {tab === "calendar" && rooms.length > 0 && bookings.length > 0 && (
-        <div className="space-y-4">
-
-          {/* TOP-LEVEL SWITCH TO MONTH VIEW */}
-          <br></br>
-          <div className="flex justify-start">
-            <button
-              onClick={() => setTab("month")}
-              className="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded"
-            >
-              📅 Month View
-            </button>
-          </div>
-  
-
-        </div>
-
-        
-      )}
-      {/* ------------------ MONTH VIEW ------------------ */}
-        {tab === "month" && (
-          <div className="space-y-4">
-
-            {/* Switch back to Week View */}
-            <div className="flex justify-between items-center">
-              {/* <button
-                onClick={() => setTab("calendar")}
-                className="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded"
-              >
-                📆 Week View
-              </button> */}
-
-            </div>
-                        <br></br>
-          <button
-            className="mb-4 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            onClick={() => setNewBookingOpen(true)}
-          >
-            + Add Booking
-          </button>
-            {isMobile ? (
-              <MobileAgenda
-                bookings={bookings}
-                monthDate={monthDate}
-                onEditBooking={setEditingBooking}
-              />
-            ) : (
-                    <MonthlyCalendar
-                      rooms={rooms}
-                      bookings={bookings}
-                      monthDate={monthDate}
-                      setMonthDate={setMonthDate}
-                      onSetMonth={handleSetMonth}
-                      onMoveBooking={handleMoveBooking}
-                      onPrevMonth={() =>
-                        setMonthDate(
-                          new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1)
-                        )
-                      }
-                      
-                      onNextMonth={() =>
-                        setMonthDate(
-                          new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1)
-                        )
-                      }
-                      onToday={() => setMonthDate(new Date())}
-                      onEditBooking={(b) => setEditingBooking(b)}
-                    
-                      windowStart={weekStart}
-                    />
-            )}
-          </div>
-        )}
-
-          <br></br>
-          <div className="mt-6 p-4 bg-white border rounded shadow-sm">
-  <h3 className="font-semibold mb-3">🔎 Booking Request Checker</h3>
-
-  {/* FORM INPUTS */}
-  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-
-        <div>
-          <label className="text-sm font-medium">Check-in</label>
-          <input
-            type="date"
-            className="w-full p-2 border rounded mt-1"
-            value={checkInReq}
-            onChange={(e) => setCheckInReq(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium">Check-out</label>
-          <input
-            type="date"
-            className="w-full p-2 border rounded mt-1"
-            value={checkOutReq}
-            onChange={(e) => setCheckOutReq(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium">Adults</label>
-          <input
-            type="number"
-            min="1"
-            className="w-full p-2 border rounded mt-1"
-            value={adultsReq}
-            onChange={(e) => setAdultsReq(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium">Kids</label>
-          <input
-            type="number"
-            min="0"
-            className="w-full p-2 border rounded mt-1"
-            value={kidsReq}
-            onChange={(e) => setKidsReq(e.target.value)}
-          />
-        </div>
-
-        <div className="flex items-end">
-          <button
-            onClick={handleCheckerRequest}
-            className="w-full p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Check
-          </button>
-        </div>
-      </div>
-
-      {/* RESULTS */}
-{availableTypes.length > 0 && (
-  <div className="mt-6 p-4 bg-gray-50 border rounded">
-    <h4 className="font-semibold mb-2">Available Room Types</h4>
-
-    <div className="space-y-3">
-      {availableTypes.map((t) => (
-        <div
-          key={t.type}
-          className={`border rounded-lg p-3 bg-white shadow-sm ${
-            selectedType?.type === t.type
-              ? "ring-2 ring-blue-400"
-              : "hover:bg-blue-50"
-          }`}
-        >
-          {/* Header row with select button */}
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="font-medium">
-                {t.type} — {t.rooms.length} available
-              </div>
-              <div className="text-sm text-gray-500">
-                Capacity: {t.capacity}
-              </div>
-            </div>
-            <button
-              onClick={() => setOfferData(t)}
-              className="px-3 py-1 text-sm rounded bg-sky-600 text-white hover:bg-sky-700"
-            >
-              Prepare Offer
-            </button>
-          </div>
-
-          {/* Table of specific rooms */}
-          {t.rooms.length > 0 && (
-            <div className="mt-2">
-              <table className="w-full text-sm border border-gray-200 rounded">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-2 py-1 text-left border-b text-gray-700">
-                      Room
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {t.rooms.map((roomName) => (
-                    <tr key={roomName}>
-                      <td className="px-2 py-1 border-t">{roomName}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {offerData && (
-            <Modal onClose={() => setOfferData(null)}>
-              <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg space-y-4">
-
-                <h2 className="text-xl font-semibold">
-                  Offer for {offerData.type}
-                </h2>
-
-                <OfferTemplate
-                  start={checkInReq}
-                  end={checkOutReq}
-                  adults={adultsReq}
-                  kids={kidsReq}
-                  roomType={offerData}
-                />
-
-                <button
-                  onClick={() => setOfferData(null)}
-                  className="px-4 py-2 bg-gray-300 rounded"
-                >
-                  Close
-                </button>
-              </div>
-            </Modal>
-          )}
-
-        </div>
-      ))}
-    </div>
-
-    {selectedType && (
-      <div className="mt-4 p-3 bg-blue-50 border border-blue-300 rounded">
-        <p className="font-medium">
-          Selected type: {selectedType.type}
-        </p>
-        <p className="text-sm text-gray-600 mt-1">
-          You’ll still choose the exact room manually in the booking modal.
-        </p>
-      </div>
-    )}
-  </div>
-)}
-    </div>
-          <br></br>
-
-          {requestResults && (
-            <div className="mt-4">
-              <h4 className="font-semibold">Available Rooms</h4>
-
-              {requestResults.freeRooms.length === 0 && (
-                <div className="text-sm text-red-600">No rooms available</div>
-              )}
-
-              {requestResults.freeRooms.map((room) => (
-                <div
-                  key={room.id}
-                  className="p-2 mt-1 bg-green-50 border border-green-300 rounded"
-                >
-                  Room {room.name} (capacity {room.capacity})
-                </div>
-              ))}
-
-              {requestResults.freeRooms.length > 0 && <hr className="my-3" />}
-
-              <h4 className="font-semibold">Possible Swaps</h4>
-
-              {requestResults.validSwaps.length === 0 && (
-                <div className="text-sm text-slate-500">No valid swaps available</div>
-              )}
-
-              {requestResults.validSwaps.map((s, i) => (
-                <div
-                  key={i}
-                  className="p-2 mt-1 bg-yellow-50 border border-yellow-300 rounded text-sm"
-                >
-                  Move <b>{s.moveBooking.guestName} </b>  
-                  from <b>Room {s.from} </b> to <b>Room {s.to} </b>  
-                  to free a spot.
-                </div>
-              ))}
-            </div>
-          )}
- 
-      {/* ------------------ NEW BOOKING MODAL ------------------ */}
-      {newBookingOpen && (
-        <Modal onClose={() => setNewBookingOpen(false)}>
-          <BookingForm
-            onSave={(savedBooking) => {
-              upsertBooking(savedBooking);
-              setNewBookingOpen(false);
-            }}
-            onDelete={() => {
-              setNewBookingOpen(false);
-              axios.get(URL).then((res) => setBookings(res.data));
-            }}
-            rooms={rooms}
-            bookings={bookings}
-          />
-        </Modal>
-      )}
-
-      {/* ------------------ EDIT BOOKING MODAL ------------------ */}
-      {editingBooking && (
-        <Modal onClose={() => setEditingBooking(null)}>
-
-          <BookingEditor
-            booking={editingBooking}
-            onDelete={deleteBooking} 
-            onSave={(savedBooking) => {
-              upsertBooking(savedBooking);
-              setEditingBooking(null);
-            }}
-            rooms={rooms}
-            bookings={bookings}
-          />
-        </Modal>
-      )}
-    </div>
-  );
+  return mobile;
 }
 
-/* -------------------------------------------------------
-   MODAL COMPONENT
-------------------------------------------------------- */
-function Modal({ children, onClose }) {
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+function BookingList({ bookings, onOpen, searching }) {
+  if (!bookings.length) return <p className="workspace-empty">{searching ? "No bookings match your search." : "No bookings for this period."}</p>;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:p-4 lg:p-6" onMouseDown={onClose}>
-      <div className="relative h-full w-full overflow-hidden bg-white shadow-2xl sm:h-[94vh] sm:max-w-7xl sm:rounded-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        <button
-          onClick={onClose}
-          className="absolute right-5 top-5 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-xl text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
-          aria-label="Close booking editor"
-        >
-          &times;
-        </button>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------
-   BOOKING CARD (kept from your original UI)
-------------------------------------------------------- */
-/* ------------------ DRAGGABLE BOOKING CARD ------------------ */
-function BookingCard({
-  booking,
-  x,
-  width,
-  roomIndex,
-  isOverbooked,
-  setNodeRef,
-  listeners,
-  attributes,
-  transform,
-  onClick,
-  fromOverlay = false
-}) {
- 
-
-  const translateX = transform?.x ?? 0;
-  const translateY = transform?.y ?? 0;
-
-  const [dragging, setDragging] = React.useState(false);
-
-  // When transform is applied → dragging
-  React.useEffect(() => {
-    if (transform && (transform.x !== 0 || transform.y !== 0)) {
-      setDragging(true);
-    }
-  }, [transform]);
-
-  // Reset after drag ends
-  React.useEffect(() => {
-    if (!transform) setDragging(false);
-  }, [transform]);
-  return (
-    <div
-      onClickCapture={(e) => {
-        if (!dragging && onClick) {
-          e.stopPropagation();
-          onClick(booking);
-        }
-      }}
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={`
-        absolute rounded border p-1 text-xs cursor-grab shadow-md
-        transition-all duration-150 
-        ${isOverbooked ? "bg-red-300 border-red-600" : "bg-blue-200 border-blue-500"}
-        ${fromOverlay ? "opacity-80 scale-[1.03]" : ""}
-      `}
-      style={{
-        left: x + translateX,
-        top: translateY,
-        width,
-        height: ROW_HEIGHT - 6,
-        zIndex: fromOverlay ? 9999 : 10
-      }}
-    >
-      <div className="text-sm font-medium truncate max-w-full">{booking.guestName}</div>
-      <div className="text-[10px] opacity-70">
-        {booking.channel} • €{booking.price}/night
-      </div>
-
-      {isOverbooked && (
-        <div className="absolute right-1 top-1 text-[10px] font-bold text-red-800 bg-red-200 rounded px-1">
-          !
-        </div>
-      )}
-    </div>
-  );
-}
- 
-/* -------------------------------------------------------
-   BOOKING FORM
-------------------------------------------------------- */
-function BookingForm({ booking, onSave, rooms, bookings = [], onClose, onDelete }) {
-   
-  const [form, setForm] = useState(
-    booking || {
-      guestName: "",
-      room: "",
-      checkIn: "",
-      checkOut: "",
-      adults: 2,
-      kids: "",
-      channel: "Direct",
-      totalAmount: "",
-      paid: false,
-      deposit: 0,
-      price: "",
-      notes: "",
-    }
-  );
-  const [submitError, setSubmitError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const unavailableRoomNames = useMemo(() => {
-    if (!form.checkIn || !form.checkOut || form.checkOut <= form.checkIn) return new Set();
-
-    return new Set(
-      bookings
-        .filter((candidate) => String(candidate.id) !== String(booking?.id))
-        .filter((candidate) => (
-          candidate.checkIn < form.checkOut && candidate.checkOut > form.checkIn
-        ))
-        .map((candidate) => String(candidate.room))
-    );
-  }, [bookings, booking?.id, form.checkIn, form.checkOut]);
-
-  const selectedRoom = rooms.find((room) => String(room.name) === String(form.room));
-  const guestCount = Math.max(0, Number(form.adults) || 0) + Math.max(0, Number(form.kids) || 0);
-  const selectedRoomUnavailable = unavailableRoomNames.has(String(form.room));
-  const selectedRoomOverCapacity = selectedRoom && guestCount > Number(selectedRoom.capacity || 0);
- 
-  const update = (field) => (e) =>
-  {
-    setForm({
-      ...form,
-      [field]:
-          e.target.value,
-    });
-    
-  }
-  const submit = async () => {
-    setSubmitError("");
-    if (
-      !form.guestName ||
-      !form.room ||
-      !form.checkIn ||
-      !form.checkOut ||
-      !form.totalAmount
-    ) {
-      setSubmitError("Please complete the guest, room, dates and total amount fields.");
-      return;
-    }
-
-    if (form.checkOut <= form.checkIn) {
-      setSubmitError("Check-out must be after check-in.");
-      return;
-    }
-    if (selectedRoomUnavailable) {
-      setSubmitError(`Room ${form.room} is not available for these dates.`);
-      return;
-    }
-    if (selectedRoomOverCapacity) {
-      setSubmitError(`Room ${form.room} allows ${selectedRoom.capacity} guests; this booking has ${guestCount}.`);
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      const response = booking
-        ? await axios.put(`${URL}/${booking.id}`, form)
-        : await axios.post(URL, form);
-
-      onSave(response.data);
-    } catch (error) {
-      setSubmitError(error.response?.data?.error || "The booking could not be saved. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
- 
-  function updateRoom(e){
-     
-    
-  }
-  const nights =
-    form.checkIn && form.checkOut
-    ? differenceInCalendarDays(
-        new Date(form.checkOut),
-        new Date(form.checkIn)
-      )
-    : 0;
-
-  const pricePerNight =
-     nights > 0 && Number(form.totalAmount)
-    ? (Number(form.totalAmount) / nights).toFixed(2)
-    : "0.00";
-
-    useEffect(() => {
-      if (nights > 0 && Number(form.totalAmount)) {
-        const computed = (
-          Number(form.totalAmount) / nights
-        ).toFixed(2);
-
-        if (computed !== form.price) {
-          setForm((prev) => ({
-            ...prev,
-            price: computed,
-          }));
-        }
-      } else if (form.price !== "") {
-        setForm((prev) => ({
-          ...prev,
-          price: "",
-        }));
-      }
-    }, [form.totalAmount, nights]);
-   
-const total = Number(form.totalAmount || 0);
-const deposit = Number(form.deposit || 0);
-
-const remaining = form.paid
-  ? 0
-  : Math.max(0, total - deposit);
-
-return (
-  <div className="relative flex h-full w-full flex-col bg-slate-50">
-
-    {/* ================= HEADER (fixed) ================= */}
-    <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-5 pr-20 sm:px-8">
-      <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-sky-400 to-blue-500
-                        flex items-center justify-center text-white text-xl shadow-md">
-          🛏️
-        </div>
-        <div>
-          <h3 className="text-2xl font-semibold text-gray-800">
-            {booking ? "Edit Booking" : "New Booking"}
-          </h3>
-          <p className="text-xs text-sky-600">
-            Luis Pool • Room & Booking Manager
-          </p>
-        </div>
-      </div>
-    </div>
-
-    {/* ================= BODY (scrollable) ================= */}
-    <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-6 overflow-y-auto p-4 sm:p-6 lg:grid-cols-2 lg:p-8">
-
-      {/* Guest & Room */}
-      <div className="grid grid-cols-1 gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3 lg:col-span-2 sm:p-6">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-            <span className="text-sky-500">👤</span> Guest Name
-          </label>
-          <input
-            type="text"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
-                       focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-            value={form.guestName}
-            onChange={update("guestName")}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-            <span className="text-sky-500">🏡</span> Room
-          </label>
-          <select
-            value={form.room}
-            onChange={update("room")}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
-                       focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-          >
-            <option value="">Select room...</option>
-            {rooms.map((r) => {
-              const unavailable = unavailableRoomNames.has(String(r.name));
-              const overCapacity = guestCount > Number(r.capacity || 0);
-              return (
-              <option key={r.id} value={r.name} disabled={unavailable || overCapacity}>
-                {r.name} — {r.type} (capacity {r.capacity}){unavailable ? " — unavailable" : overCapacity ? " — too small" : ""}
-              </option>
-            )})}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Booking Channel</label>
-          <select
-            value={form.channel}
-            onChange={update("channel")}
-            className="w-full rounded-lg border border-gray-300 bg-sky-50/40 px-3 py-2 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
-          >
-            {["Direct", "Booking.com", "Expedia", "Airbnb", "Travel agent", "Other"].map((channel) => (
-              <option key={channel} value={channel}>{channel}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Stay Details */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-          <span className="text-sky-500">📅</span> Stay Details
-        </h4>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">Check-in</label>
-            <input
-              type="date"
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
-                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-              value={form.checkIn}
-              onChange={update("checkIn")}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Check-out</label>
-            <input
-              type="date"
-              required
-              min={form.checkIn || undefined}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
-                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-              value={form.checkOut}
-              onChange={update("checkOut")}
-            />
-          </div>
-          
-
-
-        </div>
-            {form.checkIn && form.checkOut && nights > 0 && (
-              <div
-                className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60
-                          px-4 py-3 flex flex-col gap-1"
-              >
-                <div className="flex items-center gap-2 text-sky-700 font-medium text-sm">
-               
-                  Stay duration
-                </div>
-
-                <div className="text-2xl font-semibold text-sky-900 leading-tight">
-                  {nights} {nights === 1 ? "night" : "nights"}
-                </div>
-
-                <div className="text-xs text-sky-600">
-                  Check-in:{" "}
-                  {new Date(form.checkIn).toLocaleDateString("en-GB", {
-                    weekday: "short",
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                  {" → "}
-                  Check-out:{" "}
-                  {new Date(form.checkOut).toLocaleDateString("en-GB", {
-                    weekday: "short",
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </div>
-              </div>
-            )}
-            {form.room && form.checkIn && form.checkOut && nights > 0 && (
-              <div className={`mt-3 rounded-lg px-3 py-2 text-sm font-medium ${selectedRoomUnavailable || selectedRoomOverCapacity ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
-                {selectedRoomUnavailable
-                  ? `Room ${form.room} overlaps another booking.`
-                  : selectedRoomOverCapacity
-                    ? `Room ${form.room} allows ${selectedRoom?.capacity || 0} guests.`
-                    : `Room ${form.room} is available for these dates.`}
-              </div>
-            )}
-      </div>
-
-      {/* Guests */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-          <span className="text-sky-500">👨‍👩‍👧</span> Guests
-        </h4>
-
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Adults</label>
-            <input
-              type="number"
-              min="1"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
-                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-              value={form.adults}
-              onChange={update("adults")}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Kids</label>
-            <input
-              type="number"
-              min="0"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-sky-50/40
-                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-              value={form.kids}
-              onChange={update("kids")}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Pricing & Channel */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-          <span className="text-sky-500">💶</span> Pricing & Deposit
-        </h4>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Deposit</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
-                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-              value={form.deposit}
-              onChange={(e) => {
-                const v = e.target.value.replace(",", ".");
-                
-                if (/^\d*\.?\d*$/.test(v)) {
-                  update("deposit")({ target: { value: v } });
-                }
-              }}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">
-              Total Amount (€)
-            </label>
-            <input
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-sky-50/40
-                         focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white"
-              value={form.totalAmount}
-              onChange={(e) => {
-                const v = e.target.value.replace(",", ".");
-                
-                if (/^\d*\.?\d*$/.test(v)) {
-                  update("totalAmount")({ target: { value: v } });
-                  
-                }
-              }}
-            />
-          </div>
-        </div>
-          {form.totalAmount && (
-            <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3 space-y-3">
-
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium text-sky-700">
-                  💳 Payment Summary
-                </div>
-
-                <label className="flex items-center gap-2 text-sm text-sky-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.paid}
-                    onChange={(e) =>  
-                      setForm((prev) => ({
-                        ...prev,
-                        paid: e.target.checked,
-                      }))
-                    }
-                    className="rounded border-sky-300 text-sky-600 focus:ring-sky-400"
-                  />
-                  Paid in full
-                </label>
-              </div>
-
-              {/* Amounts */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-slate-500">Total stay</p>
-                  <p className="text-lg font-semibold text-slate-800">
-                    €{total.toFixed(2)}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-slate-500">
-                    {form.paid ? "Collected" : "Remaining due"}
-                  </p>
-                  <p
-                    className={`text-lg font-semibold ${
-                      form.paid ? "text-emerald-600" : "text-sky-900"
-                    }`}
-                  >
-                    €{remaining.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Secondary info */}
-              {!form.paid && deposit > 0 && (
-                <div className="text-xs text-slate-500">
-                  Deposit received: €{deposit.toFixed(2)}
-                </div>
-              )}
-
-              {form.paid && (
-                <div className="text-xs text-emerald-600 font-medium">
-                  ✓ Booking fully paid
-                </div>
-              )}
-            </div>
-          )}
-      </div>
-
-      {/* Notes */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-          <span className="text-sky-500">📝</span> Notes
-        </h4>
-        <textarea
-          className="w-full px-3 py-2 h-28 border border-gray-300 rounded-lg bg-sky-50/40
-                     focus:ring-2 focus:ring-sky-400 focus:border-sky-400 focus:bg-white resize-none"
-          value={form.notes}
-          onChange={update("notes")}
-        />
-      </div>
-
-    </div>
-
-    {/* ================= FOOTER (fixed) ================= */}
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-8">
-      {booking && (
-        <button
-          onClick={onDelete}
-          className="px-4 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 font-medium"
-        >
-          Delete Booking
-        </button>
-      )}
-
-      {submitError && (
-        <div role="alert" className="min-w-0 flex-1 rounded-lg bg-red-50 px-4 py-2 text-sm font-medium text-red-700">
-          {submitError}
-        </div>
-      )}
-
-      <button
-        onClick={submit}
-        disabled={submitting || selectedRoomUnavailable || selectedRoomOverCapacity}
-        className="ml-auto px-5 py-2.5 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600
-                   text-white font-medium hover:from-sky-600 hover:to-blue-700 shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {submitting ? "Saving..." : booking ? "Save Changes" : "Create Booking"}
+  return <div>
+    {bookings.map((booking) => (
+      <button key={booking.id} type="button" className="workspace-row booking-list-row" onClick={() => onOpen(booking)}>
+        <span><strong>{booking.guestName}</strong><span className="workspace-muted block">Room {booking.room} · {booking.channel || "Direct"}</span></span>
+        <span className="workspace-muted">{humanDate(booking.checkIn)} – {humanDate(booking.checkOut)}</span>
+        {!isActiveBooking(booking) ? <span className="workspace-badge workspace-badge-warn">{booking.status === "no-show" ? "No-show" : "Inactive"}</span> :
+          <span className={"workspace-badge" + (booking.paid ? " workspace-badge-ready" : "")}>{booking.paid ? "Paid" : formatMoney(balanceDue(booking)) + " due"}</span>}
       </button>
-    </div>
-  </div>
-);
-
-
-
-
+    ))}
+  </div>;
 }
 
-/* -------------------------------------------------------
-   BOOKING EDITOR
-------------------------------------------------------- */
-function BookingEditor({ booking, onSave, onDelete, rooms, bookings }) {
-const handleDelete = async () => {
-  if (!window.confirm("Are you sure you want to delete this booking?")) return;
+export default function Bookings() {
+  const [params, setParams] = useSearchParams();
+  const bookingId = params.get("booking");
+  const wantsNew = params.get("new") === "1";
+  const [date, setDate] = useState(() => parseISO(todayAtHotel()));
+  const [todayJump, setTodayJump] = useState(0);
+  const [scale, setScale] = useState("month");
+  const [view, setView] = useState("calendar");
+  const [search, setSearch] = useState("");
+  const [history, setHistory] = useState(false);
+  const [formSeed, setFormSeed] = useState(null);
+  const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [move, setMove] = useState(null);
+  const [moving, setMoving] = useState(false);
+  const [movementError, setMovementError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  try {
-    await axios.delete(`${URL}/${booking.id}`);
-    onDelete(booking.id);
-  } catch (err) {
-    console.error("Delete failed:", err);
-    alert("Could not delete booking. Please try again.");
+  const mobile = useMobileAgenda();
+  const resource = useWorkspaceData(loadStays);
+  const { data, setData } = resource;
+  const bookings = data?.bookings;
+  const active = useMemo(() => (bookings || []).filter(isActiveBooking), [bookings]);
+  const start = scale === "week" ? startOfWeek(date, { weekStartsOn: 1 }) : startOfMonth(date);
+  const end = scale === "week" ? addDays(start, 7) : addMonths(start, 1);
+  const searching = search.trim().toLowerCase();
+  const listView = mobile || view === "list" || Boolean(searching) || history;
+  const visible = (searching || history ? bookings || [] : active)
+    .filter((booking) => searching ?
+      [booking.guestName, booking.room, booking.channel, booking.notes, booking.checkIn, booking.checkOut, booking.id, booking.status]
+        .some((value) => String(value ?? "").toLowerCase().includes(searching)) :
+      overlapsStay(booking, toDate(start), toDate(end)))
+    .sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn)));
+  const editing = bookings?.find((booking) => String(booking.id) === bookingId);
+  const currentYear = parseISO(todayAtHotel()).getFullYear();
+  const years = [...new Set([
+    ...Array.from({ length: 5 }, (_, index) => currentYear - 1 + index),
+    date.getFullYear(),
+    ...(bookings || []).map((booking) => Number(booking.checkIn?.slice(0, 4))).filter((year) => year >= 1900),
+  ])].sort((a, b) => a - b);
+  const unavailable = !data || resource.loading || Boolean(resource.error);
+
+  function closeEditor() {
+    setParams({}, { replace: true });
+    setFormSeed(null);
   }
-};
-    
+
+  function newBooking(seed = {}) {
+    setFormSeed(seed);
+    setAvailabilityOpen(false);
+    setParams({ new: "1" });
+  }
+
+  function saveBooking(saved, message, close = true) {
+    setData((current) => ({
+      ...current,
+      bookings: current.bookings.some((booking) => booking.id === saved.id)
+        ? current.bookings.map((booking) => booking.id === saved.id ? saved : booking)
+        : [...current.bookings, saved],
+    }));
+    if (close) closeEditor();
+    setDate(parseISO(saved.checkIn));
+    setNotice(message);
+  }
+
+  function deleteBooking(id) {
+    setData((current) => ({ ...current, bookings: current.bookings.filter((booking) => booking.id !== id) }));
+    closeEditor();
+    setNotice("Booking deleted.");
+  }
+
+  async function confirmMove() {
+    if (moving) return;
+    setMoving(true);
+    setMovementError("");
+    try {
+      const { data: saved } = await axios.put(URL + "/" + move.booking.id, {
+        room: move.room, checkIn: move.checkIn, checkOut: move.checkOut,
+      });
+      saveBooking(saved, "Booking moved.", false);
+      setMove(null);
+    } catch (error) {
+      setMovementError(errorMessage(error, "The booking could not be moved. Try again."));
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  function shiftPeriod(amount) {
+    setDate((current) => scale === "week" ? addDays(current, 7 * amount) : addMonths(current, amount));
+  }
 
   return (
-    <div className="h-full w-full">
-      <BookingForm booking={booking} onSave={onSave} rooms={rooms} bookings={bookings} onDelete={handleDelete}/>
-      {/* Delete button */}
-      {/* <button
-        className="mt-4 w-full py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-        onClick={handleDelete}
-      >
-        Delete Booking
-      </button> */}
+    <div className="workspace">
+      <header className="workspace-heading">
+        <h1>Bookings</h1>
+        <div className="workspace-actions">
+          <button type="button" className="workspace-button" disabled={unavailable} onClick={() => setAvailabilityOpen(true)}>Check availability</button>
+          <button type="button" className="workspace-button workspace-primary" disabled={unavailable} onClick={() => newBooking()}><Plus size={17} /> New booking</button>
+        </div>
+      </header>
+      {notice && <p className="workspace-badge workspace-badge-ready justify-self-start" role="status">{notice}</p>}
+      {(!data || resource.error || resource.loading) && <DataFeedback {...resource} />}
+      {bookingId && data && !editing && <p className="workspace-alert" role="alert">This booking could not be found. <button className="workspace-button" onClick={closeEditor}>Back to bookings</button></p>}
+
+      {data && (
+        <section className="workspace-panel">
+          <div className="workspace-toolbar booking-toolbar">
+            <div className="workspace-actions booking-period-controls">
+              <button className="workspace-button" onClick={() => { setDate(parseISO(todayAtHotel())); setTodayJump((current) => current + 1); }}>Today</button>
+              <button className="workspace-icon" aria-label={"Previous " + scale} onClick={() => shiftPeriod(-1)}><ChevronLeft size={19} /></button>
+              <button className="workspace-icon" aria-label={"Next " + scale} onClick={() => shiftPeriod(1)}><ChevronRight size={19} /></button>
+              <select className="workspace-input" aria-label="Month" value={date.getMonth()} onChange={(event) => setDate(new Date(date.getFullYear(), Number(event.target.value), 1))}>
+                {Array.from({ length: 12 }, (_, month) => <option key={month} value={month}>{format(new Date(2000, month, 1), "MMM")}</option>)}
+              </select>
+              <select className="workspace-input" aria-label="Year" value={date.getFullYear()} onChange={(event) => setDate(new Date(Number(event.target.value), date.getMonth(), 1))}>
+                {years.map((year) => <option key={year}>{year}</option>)}
+              </select>
+            </div>
+            <div className="workspace-actions">
+              <select className="workspace-input" aria-label="Calendar range" value={scale} onChange={(event) => setScale(event.target.value)}><option value="month">Month</option><option value="week">Week</option></select>
+              {!mobile && <>
+                <button className="workspace-icon" title="Calendar view" aria-label="Calendar view" aria-pressed={!listView} onClick={() => { setView("calendar"); setHistory(false); setSearch(""); }}><CalendarDays size={18} /></button>
+                <button className="workspace-icon" title="List view" aria-label="List view" aria-pressed={listView} onClick={() => setView("list")}><List size={18} /></button>
+              </>}
+            </div>
+            <label className="booking-search"><Search size={17} aria-hidden="true" />
+              <input className="workspace-input" aria-label="Search all bookings" placeholder="Search all bookings" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </label>
+          </div>
+          <div className="workspace-panel-header">
+            <h2>{searching ? visible.length + " matching bookings" : scale === "week" ? humanDate(toDate(start)) + " – " + humanDate(toDate(addDays(end, -1))) : format(date, "MMMM yyyy")}</h2>
+            {!searching && <label className="workspace-muted flex items-center gap-2"><input type="checkbox" checked={history} onChange={(event) => setHistory(event.target.checked)} /> Include no-shows</label>}
+          </div>
+          {listView ? <BookingList bookings={visible} onOpen={(booking) => setParams({ booking: booking.id })} searching={searching} /> :
+            data.rooms.length ? <BookingCalendar start={start} end={end} focusDate={toDate(date)} todayJump={todayJump} rooms={data.rooms} bookings={visible} onOpen={(booking) => setParams({ booking: booking.id })}
+              onCreate={(seed) => { if (!unavailable) newBooking(seed); }}
+              onMove={(proposed) => { if (!unavailable) { setMovementError(""); setMove(proposed); } }} /> :
+              <p className="workspace-empty">No rooms have been set up. <Link className="underline" to="/rooms">Add a room</Link></p>}
+        </section>
+      )}
+      {data && !resource.loading && !resource.error && <DataFeedback {...resource} />}
+      {availabilityOpen && data && <BookingAvailability rooms={data.rooms} bookings={active} onClose={() => setAvailabilityOpen(false)} onSelect={newBooking} />}
+      {data && (editing || wantsNew) && <BookingEditor key={editing?.id || "new"} booking={editing} seed={formSeed} rooms={data.rooms} bookings={active}
+        onClose={closeEditor} onSave={saveBooking} onDelete={deleteBooking} readOnly={unavailable} />}
+      {move && <WorkspaceDialog title="Review booking move" onClose={() => { if (!moving) setMove(null); }}>
+        <div className="workspace-dialog-body space-y-2">
+          <p className="font-semibold">{move.booking.guestName}</p>
+          <p className="workspace-muted">Current · Room {move.booking.room}, {humanDate(move.booking.checkIn)} – {humanDate(move.booking.checkOut)}</p>
+          <p>Proposed · Room {move.room}, {humanDate(move.checkIn)} – {humanDate(move.checkOut)}</p>
+          {movementError && <p className="workspace-alert" role="alert">{movementError}</p>}
+        </div>
+        <div className="workspace-dialog-footer"><button className="workspace-button" disabled={moving} onClick={() => setMove(null)}>Cancel</button><button className="workspace-button workspace-primary" disabled={moving} onClick={confirmMove}>{moving ? "Moving…" : "Confirm move"}</button></div>
+      </WorkspaceDialog>}
     </div>
   );
 }
+

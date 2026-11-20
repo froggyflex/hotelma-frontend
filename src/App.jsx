@@ -1,10 +1,13 @@
-import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
-import React, { useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+
+import { ArrowLeftRight, BedDouble, CalendarDays, ClipboardList, FileDown, LayoutDashboard, LogOut, Menu, ReceiptText, Settings, Waves } from "lucide-react";
+import "./styles/workspace.css";
+import "./styles/operations-workspace.css";
 
 import Dashboard from "./pages/Dashboard";
 import Bookings from "./pages/Bookings";
 import Rooms from "./pages/Rooms";
-import Calendar from "./pages/Calendar";
 import Housekeeping from "./pages/Housekeeping";
 import InvoicesMain from "./pages/Invoices";
 import CreateInvoice from "./pages/CreateInvoice";
@@ -26,101 +29,61 @@ import AdminTableMapEditor from "./kitchenAdmin/pages/AdminTableMapEditor";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-const navLinkClass = ({ isActive }) =>
-  "px-3 py-2 rounded-md text-sm font-medium " +
-  (isActive ? "bg-white text-blue-700" : "hover:bg-blue-500/30");
-
-/* ========================= */
-/* APP LAYOUT (PMS)          */
-/* ========================= */
+const navigation = [
+  ["/", "Dashboard", LayoutDashboard],
+  ["/bookings", "Bookings", CalendarDays],
+  ["/rooms", "Rooms", BedDouble],
+  ["/housekeeping", "Housekeeping", ClipboardList],
+  ["/invoices", "Invoices", ReceiptText],
+  ["/exports/bookings", "Booking exports", FileDown],
+  ["/settings", "Settings", Settings],
+];
 
 function AppLayout() {
   const { logout } = useAuth();
+  const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const title = pathname === "/calendar" ? "Calendar" : pathname === "/invoices/new" ? "New invoice" :
+    navigation.find(([path]) => pathname === path || pathname.startsWith(path + "/"))?.[1] || "Luis Pool";
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      {/* MOBILE OVERLAY */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* SIDEBAR */}
-      <aside
-        className={`
-          fixed lg:static z-50
-          inset-y-0 left-0
-          w-64 bg-blue-700 text-white p-4
-          flex flex-col space-y-4
-          transform transition-transform duration-200
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
-        `}
-      >
-        <div>
-          <h1 className="text-2xl font-bold">Luis Pool</h1>
-          <p className="text-xs text-blue-100">Room & Booking Manager</p>
+    <div className="pms-shell">
+      {sidebarOpen && <button className="pms-nav-backdrop" aria-label="Close menu" onClick={() => setSidebarOpen(false)} />}
+      <aside id="pms-navigation" className={sidebarOpen ? "pms-nav pms-nav-open" : "pms-nav"} onKeyDown={(event) => {
+        if (event.key === "Escape") setSidebarOpen(false);
+      }}>
+        <div className="pms-brand">
+          <div className="pms-brand-mark"><Waves size={22} aria-hidden="true" /></div>
+          <div><strong>Luis Pool &amp; Family</strong><small>Property management</small></div>
         </div>
-
-        <nav className="flex flex-col space-y-2 text-sm">
-          <NavLink to="/" end className={navLinkClass} onClick={() => setSidebarOpen(false)}>
-            Dashboard
-          </NavLink>
-          <NavLink to="/bookings" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
-            Bookings
-          </NavLink>
-          <NavLink to="/rooms" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
-            Rooms
-          </NavLink>
-          <NavLink to="/housekeeping" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
-            Housekeeping
-          </NavLink>
-          <NavLink to="/invoices" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
-            AADE
-          </NavLink>
-          <NavLink className={navLinkClass} to="/exports/bookings">Booking Exports</NavLink>
-          <NavLink to="/settings" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
-            Settings
-          </NavLink>
-
-
+        <nav aria-label="Property management">
+          {navigation.map(([path, label, Icon]) => (
+            <NavLink key={path} to={path} end={path === "/"} className="pms-nav-link" onClick={() => setSidebarOpen(false)}>
+              <Icon size={18} aria-hidden="true" /> {label}
+            </NavLink>
+          ))}
         </nav>
-
-        <button
-          onClick={logout}
-          className="mt-auto px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm"
-        >
-          Logout
-        </button>
-            <br></br> <br></br>
-        {/* HUB LINK */}
-          <NavLink to="/hub" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
-            Switch App
-          </NavLink>
+        <div className="pms-nav-footer">
+          <NavLink to="/hub" className="pms-nav-link"><ArrowLeftRight size={18} aria-hidden="true" /> Switch app</NavLink>
+          <button onClick={logout} className="pms-nav-link"><LogOut size={18} aria-hidden="true" /> Sign out</button>
+        </div>
       </aside>
-
-      {/* MAIN */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* MOBILE HEADER */}
-        <header className="lg:hidden flex items-center gap-3 bg-white border-b px-4 py-3">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="text-blue-700 text-xl"
-          >
-            ☰
-          </button>
-          <span className="font-semibold text-slate-800">Dashboard</span>
+      <div className="pms-body">
+        <header className="pms-mobile-header">
+          <button className="workspace-icon" aria-label="Open menu" aria-controls="pms-navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}><Menu size={20} /></button>
+          <span>{title}</span>
         </header>
+        <main className="pms-main" key={pathname}>
 
-        <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/rooms" element={<Rooms />} />
-            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/calendar" element={<Navigate to="/bookings" replace />} />
             <Route path="/housekeeping" element={<Housekeeping />} />
             <Route path="/invoices" element={<InvoicesMain />} />
             <Route path="/invoices/new" element={<CreateInvoice />} />

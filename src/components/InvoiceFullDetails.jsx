@@ -26,23 +26,21 @@ export default function InvoiceFullDetails({ payload, booking }) {
   ];
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow space-y-4 mt-6">
+    <div className="workspace-panel workspace-panel-body space-y-4">
       
-      <h2 className="text-lg font-bold text-blue-600">
-        Invoice Details (Live Preview)
+      <h2>
+        Invoice details
       </h2>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b pb-2">
+      <div className="workspace-actions border-b pb-2">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
+            aria-pressed={tab === t.id}
             className={
-              "px-3 py-1 text-sm rounded-t border " +
-              (tab === t.id
-                ? "border-blue-600 border-b-white bg-blue-50 text-blue-700"
-                : "border-slate-300 bg-slate-100 text-slate-600")
+              "workspace-button" + (tab === t.id ? " workspace-primary" : "")
             }
           >
             {t.label}
